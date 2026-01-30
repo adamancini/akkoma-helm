@@ -1,0 +1,32 @@
+# Helm
+*.tgz
+charts/*/charts/
+.helm/
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-output/
+coverage/
+
+# Environment
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: akkoma
+description: A Helm chart for deploying Akkoma, a federated social networking server (ActivityPub/Fediverse)
+type: application
+version: 0.1.0
+appVersion: "3.13.2"
+keywords:
+  - akkoma
+  - pleroma
+  - fediverse
+  - activitypub
+  - social-network
+  - federation
+home: https://github.com/adamancini/akkoma-helm
+sources:
+  - https://akkoma.dev/AkkomaGang/akkoma
+  - https://docs.akkoma.dev/
+maintainers:
+  - name: adamancini
+    url: https://github.com/adamancini
