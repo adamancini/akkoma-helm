@@ -1,7 +1,21 @@
 # Patterns to ignore when building packages.
 # This supports shell glob matching, relative path matching, and
 # negation (prefixed with !). Only one pattern per line.
+
+# Secrets (CRITICAL - never package secrets)
+secrets*.yaml
+*-secrets.yaml
+values.production.yaml
+values.*.local.yaml
+
+# Development files
 .DS_Store
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+
 # Common VCS dirs
 .git/
 .gitignore
@@ -10,14 +24,19 @@
 .hg/
 .hgignore
 .svn/
-# Common backup files
-*.swp
-*.bak
-*.tmp
-*.orig
-*~
+
 # Various IDEs
 .project
 .idea/
 *.tmproj
 .vscode/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Documentation (included in repo, not in package)
+DESIGN.md
+TASKS.md
+docs/
