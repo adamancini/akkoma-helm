@@ -39,9 +39,21 @@ RUN git clone --branch ${AKKOMA_VERSION} \
 # Set production environment for Mix
 ENV MIX_ENV=prod
 
-# Get dependencies and build OTP release
-RUN mix deps.get --only prod && \
-    mix do compile, release
+# Get dependencies (separate layer for better caching)
+RUN mix deps.get --only prod
+
+# Compile and build OTP release
+# Release name is 'pleroma' as defined in mix.exs line 36
+RUN mix do compile, release
+
+# Verify the release was created successfully
+# The release should be at: _build/prod/rel/pleroma
+RUN test -f /build/_build/prod/rel/pleroma/bin/pleroma || \
+    (echo "ERROR: OTP release not found at expected path" && \
+     echo "Expected: /build/_build/prod/rel/pleroma/bin/pleroma" && \
+     echo "Available releases:" && \
+     ls -la /build/_build/prod/rel/ 2>/dev/null || echo "No releases found" && \
+     exit 1)
 
 # ============================================================================
 # Stage 2: Runtime - Minimal Alpine-based image
@@ -74,6 +86,7 @@ RUN addgroup -g 1000 akkoma && \
 
 # Copy OTP release from builder stage
 # Ownership set to akkoma:akkoma for security
+# Release name 'pleroma' verified from mix.exs:36 (releases: [pleroma: [...]])
 COPY --from=builder --chown=akkoma:akkoma \
     /build/_build/prod/rel/pleroma /opt/akkoma
 
@@ -87,5 +100,6 @@ USER akkoma
 EXPOSE 4000
 
 # Start Akkoma application
+# Binary name 'pleroma' verified from mix.exs:36 (releases: [pleroma: [...]])
 # Note: Kubernetes will manage health probes - no HEALTHCHECK directive
 CMD ["./bin/pleroma", "start"]

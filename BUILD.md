@@ -84,8 +84,24 @@ docker buildx build \
    - postgresql-client (database tools)
 3. Clone Akkoma source at specified version
 4. Install Hex and Rebar (Elixir/Erlang package managers)
-5. Fetch production dependencies
+5. Fetch production dependencies (separate layer for caching)
 6. Compile and build OTP release
+7. **Verify release creation** - Confirms `_build/prod/rel/pleroma` exists
+
+**Release Name Verification:**
+The OTP release name is `pleroma` as defined in Akkoma's `mix.exs` file:
+```elixir
+releases: [
+  pleroma: [
+    include_executables_for: [:unix],
+    applications: [ex_syslogger: :load, syslog: :load, eldap: :transient],
+    steps: [:assemble, &put_otp_version/1, &copy_files/1, &copy_nginx_config/1],
+    config_providers: [{Pleroma.Config.ReleaseRuntimeProvider, []}]
+  ]
+]
+```
+
+This creates the release at `_build/prod/rel/pleroma/` with the executable at `bin/pleroma`.
 
 ### Stage 2: Runtime
 
@@ -220,6 +236,15 @@ Expected: Version information or error about missing configuration (acceptable)
 
 ## Build Optimization
 
+### Dependency Caching
+
+The Dockerfile separates `mix deps.get` from `mix compile` to improve build caching:
+
+- **Layer 1:** `mix deps.get --only prod` - Cached unless dependencies change
+- **Layer 2:** `mix do compile, release` - Re-runs when source code changes
+
+This optimization significantly reduces rebuild time when iterating on Akkoma source.
+
 ### Using Build Cache
 
 Docker caches layers for faster rebuilds. To maximize cache efficiency:
@@ -294,6 +319,20 @@ docker scout cves akkoma:latest
 **Error:** `** (Mix) Release failed`
 
 **Solution:** Check Elixir/Erlang version compatibility, review build logs
+
+### Build Fails: Release Verification
+
+**Error:** `ERROR: OTP release not found at expected path`
+
+**Cause:** The release name in `mix.exs` may have changed in a different Akkoma version.
+
+**Solution:**
+1. Check the build output for the actual release name
+2. Look at the `releases:` section in `mix.exs` for the version being built
+3. Verify the release was created: `ls -la _build/prod/rel/`
+4. Update Dockerfile paths if release name differs from `pleroma`
+
+**Expected:** For Akkoma v3.13.2 and compatible versions, the release name is `pleroma` as defined in `mix.exs:36`
 
 ### Runtime: Missing Configuration
 
