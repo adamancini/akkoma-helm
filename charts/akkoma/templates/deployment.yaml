@@ -5,65 +5,112 @@ metadata:
   labels:
     {{- include "akkoma.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
+  replicas: 1  # Single instance only
+  strategy:
+    type: Recreate  # Terminate old pod before starting new (single-instance pattern)
   selector:
     matchLabels:
       {{- include "akkoma.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        # Force pod restart on config/secret changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-akkoma.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret-akkoma.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
-        {{- include "akkoma.labels" . | nindent 8 }}
+        {{- include "akkoma.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      serviceAccountName: {{ include "akkoma.serviceAccountName" . }}
+      # Security context: non-root, UID 1000, seccomp RuntimeDefault
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
-              protocol: TCP
-          {{- with .Values.livenessProbe }}
-          livenessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.readinessProbe }}
-          readinessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- with .Values.volumes }}
+      - name: akkoma
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 4000
+          protocol: TCP
+        # Startup probe: Allow 150s for initial startup and migrations
+        startupProbe:
+          httpGet:
+            path: /api/v1/instance
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 30  # 150s max startup time (30 * 5s)
+        # Liveness probe: Restart if unresponsive
+        livenessProbe:
+          httpGet:
+            path: /api/v1/instance
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness probe: Remove from service if not ready
+        readinessProbe:
+          httpGet:
+            path: /api/v1/instance
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        env:
+        # Application secrets (from generated or external secret)
+        - name: RELEASE_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.releaseCookie | default "release-cookie" }}
+        - name: SECRET_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.secretKeyBase | default "secret-key-base" }}
+        - name: SIGNING_SALT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.signingSalt | default "signing-salt" }}
+        # Database connection details
+        - name: DB_HOST
+          value: {{ include "akkoma.postgresql.host" . }}
+        - name: DB_NAME
+          value: {{ .Values.postgresql.database }}
+        - name: DB_USER
+          value: {{ .Values.postgresql.username }}
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.postgresql.secretName" . }}
+              key: {{ .Values.postgresql.external.passwordKey | default "postgres-password" }}
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - name: config
+          mountPath: /opt/akkoma/config
+          readOnly: true
       volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      - name: config
+        configMap:
+          name: {{ include "akkoma.fullname" . }}-config
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

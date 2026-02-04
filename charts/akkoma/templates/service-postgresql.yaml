@@ -1,0 +1,19 @@
+{{- if not .Values.postgresql.external.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "akkoma.fullname" . }}-postgresql
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: postgresql
+    protocol: TCP
+    name: postgresql
+  selector:
+    {{- include "akkoma.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+{{- end }}

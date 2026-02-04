@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "akkoma.fullname" . }}-config
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+data:
+  prod.secret.exs: |
+    import Config
+
+    # Web endpoint configuration
+    config :pleroma, Pleroma.Web.Endpoint,
+      url: [host: "{{ .Values.akkoma.domain }}", scheme: "https", port: 443],
+      http: [ip: {0, 0, 0, 0}, port: 4000],
+      secret_key_base: System.get_env("SECRET_KEY_BASE"),
+      signing_salt: System.get_env("SIGNING_SALT")
+
+    # Instance configuration
+    config :pleroma, :instance,
+      name: "{{ .Values.akkoma.instanceName | default .Values.akkoma.domain }}",
+      email: "{{ .Values.akkoma.adminEmail }}",
+      notify_email: "{{ .Values.akkoma.adminEmail }}",
+      limit: {{ .Values.instance.characterLimit }},
+      registrations_open: {{ .Values.instance.registrationsOpen }},
+      upload_limit: {{ .Values.instance.uploadLimit }}
+      {{- if .Values.instance.description }},
+      description: "{{ .Values.instance.description }}"
+      {{- end }}
+
+    # Database configuration
+    config :pleroma, Pleroma.Repo,
+      adapter: Ecto.Adapters.Postgres,
+      username: System.get_env("DB_USER"),
+      password: System.get_env("DB_PASSWORD"),
+      database: System.get_env("DB_NAME"),
+      hostname: System.get_env("DB_HOST"),
+      pool_size: 10
+
+    # Upload configuration (local for iteration 1)
+    config :pleroma, Pleroma.Upload,
+      uploader: Pleroma.Uploaders.Local,
+      base_path: "/opt/akkoma/uploads"
+
+    # Media proxy configuration
+    config :pleroma, :media_proxy,
+      enabled: true,
+      proxy_opts: [
+        redirect_on_failure: true,
+        max_body_length: {{ .Values.instance.uploadLimit }}
+      ]
+
+    # Logging configuration
+    config :logger, :console,
+      format: "$time $metadata[$level] $message\n",
+      metadata: [:request_id]

@@ -1,161 +1,146 @@
 # Default values for akkoma.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# This is a YAML-formatted file following progressive disclosure pattern.
+# Basic configuration comes first, advanced options are clearly separated.
 
-# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
-replicaCount: 1
+#
+# BASIC CONFIGURATION
+# These are the only required values to get started
+#
 
-# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+# Instance configuration
+akkoma:
+  # REQUIRED: Your instance domain (must match Ingress)
+  domain: "akkoma.example.com"
+
+  # REQUIRED: Admin email for notifications
+  adminEmail: "admin@example.com"
+
+  # Instance name (defaults to domain if not set)
+  instanceName: ""
+
+# Image configuration
 image:
-  repository: nginx
-  # This sets the pull policy for images.
+  repository: ghcr.io/adamancini/akkoma
+  tag: ""  # Defaults to Chart.appVersion (v3.17.0)
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
 
-# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-imagePullSecrets: []
-# This is to override the chart name.
-nameOverride: ""
-fullnameOverride: ""
-
-# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
-serviceAccount:
-  # Specifies whether a service account should be created.
-  create: true
-  # Automatically mount a ServiceAccount's API credentials?
-  automount: true
-  # Annotations to add to the service account.
+# TLS configuration
+ingress:
+  enabled: false  # Disabled for iteration 1, will enable in iteration 5
+  className: "nginx"
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template.
-  name: ""
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: false
+    secretName: "akkoma-tls"
 
-# This is for setting Kubernetes Annotations to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+#
+# ADVANCED CONFIGURATION
+# Optional overrides for specific needs
+#
+
+# External secrets (production recommendation)
+externalSecret:
+  enabled: false
+  # When enabled, chart expects this Secret to exist with these keys:
+  name: ""
+  keys:
+    secretKeyBase: "secret-key-base"
+    signingSalt: "signing-salt"
+    releaseCookie: "release-cookie"
+
+# PostgreSQL configuration
+postgresql:
+  # Storage settings
+  storageSize: 10Gi
+  storageClass: ""  # Use cluster default
+
+  # Database connection details
+  database: "akkoma"
+  username: "akkoma"
+
+  # Resource limits for PostgreSQL
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+  # External PostgreSQL (disabled by default, uses bundled StatefulSet)
+  external:
+    enabled: false
+    host: ""
+    port: 5432
+    database: "akkoma"
+    username: "akkoma"
+    passwordSecret: ""
+    passwordKey: "password"
+
+# Storage configuration
+storage:
+  uploads:
+    size: 50Gi
+    storageClass: ""
+  frontends:
+    size: 5Gi
+    storageClass: ""
+
+# Instance behavior
+instance:
+  # Character limit for posts
+  characterLimit: 5000
+
+  # Allow new user registrations
+  registrationsOpen: false
+
+  # Upload size limit (bytes)
+  uploadLimit: 16000000
+
+  # Instance description
+  description: ""
+
+# Network security (will be enabled in iteration 5)
+networkPolicy:
+  enabled: false
+
+# Resource limits - NO CPU LIMITS (allow BEAM bursting)
+resources:
+  requests:
+    cpu: 500m      # Guaranteed CPU for scheduling
+    memory: 1Gi    # Guaranteed memory
+  limits:
+    # No CPU limit - allow bursting for BEAM scheduler efficiency
+    memory: 2Gi    # OOM protection only
+
+# Security context (hardened from the start)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault  # Baseline security
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: false  # TODO: v0.2.0
+
+# Pod annotations and labels
 podAnnotations: {}
-# This is for setting Kubernetes Labels to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
-
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-
-# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
-service:
-  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  type: ClusterIP
-  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 80
-
-# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  hosts:
-    - host: chart-example.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-  tls: []
-    # - secretName: chart-example-tls
-    #   hosts:
-    #     - chart-example.local
-
-# -- Expose the service via gateway-api HTTPRoute
-# Requires Gateway API resources and suitable controller installed within the cluster
-# (see: https://gateway-api.sigs.k8s.io/guides/)
-httpRoute:
-  # HTTPRoute enabled.
-  enabled: false
-  # HTTPRoute annotations.
-  annotations: {}
-  # Which Gateways this Route is attached to.
-  parentRefs:
-  - name: gateway
-    sectionName: http
-    # namespace: default
-  # Hostnames matching HTTP header.
-  hostnames:
-  - chart-example.local
-  # List of rules and filters applied.
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /headers
-  #   filters:
-  #   - type: RequestHeaderModifier
-  #     requestHeaderModifier:
-  #       set:
-  #       - name: My-Overwrite-Header
-  #         value: this-is-the-only-value
-  #       remove:
-  #       - User-Agent
-  # - matches:
-  #   - path:
-  #       type: PathPrefix
-  #       value: /echo
-  #     headers:
-  #     - name: version
-  #       value: v2
-
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
-
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
-
-# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
-
-# Additional volumes on the output Deployment definition.
-volumes: []
-  # - name: foo
-  #   secret:
-  #     secretName: mysecret
-  #     optional: false
-
-# Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-  # - name: foo
-  #   mountPath: "/etc/foo"
-  #   readOnly: true
-
+# Node selector
 nodeSelector: {}
 
+# Tolerations
 tolerations: []
 
+# Affinity rules
 affinity: {}
+
+# Name overrides
+nameOverride: ""
+fullnameOverride: ""

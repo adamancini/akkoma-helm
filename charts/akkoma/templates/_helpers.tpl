@@ -51,12 +51,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+PostgreSQL host helper
 */}}
-{{- define "akkoma.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "akkoma.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
+{{- define "akkoma.postgresql.host" -}}
+{{- if .Values.postgresql.external.enabled -}}
+{{ .Values.postgresql.external.host }}
+{{- else -}}
+{{ include "akkoma.fullname" . }}-postgresql
+{{- end -}}
+{{- end -}}
+
+{{/*
+PostgreSQL secret name helper
+*/}}
+{{- define "akkoma.postgresql.secretName" -}}
+{{- if .Values.postgresql.external.enabled -}}
+{{ .Values.postgresql.external.passwordSecret }}
+{{- else -}}
+{{ include "akkoma.fullname" . }}-postgresql
+{{- end -}}
+{{- end -}}
+
+{{/*
+Akkoma secret name helper (for external secrets support)
+*/}}
+{{- define "akkoma.secretName" -}}
+{{- if .Values.externalSecret.enabled -}}
+{{ .Values.externalSecret.name }}
+{{- else -}}
+{{ include "akkoma.fullname" . }}-secrets
+{{- end -}}
+{{- end -}}
