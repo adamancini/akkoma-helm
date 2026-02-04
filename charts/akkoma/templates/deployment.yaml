@@ -71,6 +71,9 @@ spec:
           timeoutSeconds: 3
           failureThreshold: 2
         env:
+        # Configuration file path
+        - name: PLEROMA_CONFIG_PATH
+          value: /etc/akkoma/prod.secret.exs
         # Application secrets (from generated or external secret)
         - name: RELEASE_COOKIE
           valueFrom:
@@ -98,19 +101,20 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ .Values.postgresql.external.passwordKey | default "postgres-password" }}
+              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
         {{- with .Values.resources }}
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}
         volumeMounts:
         - name: config
-          mountPath: /opt/akkoma/config
+          mountPath: /etc/akkoma
           readOnly: true
       volumes:
       - name: config
         configMap:
           name: {{ include "akkoma.fullname" . }}-config
+          defaultMode: 0640  # Remove world-readable permissions
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

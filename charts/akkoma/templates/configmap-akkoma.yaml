@@ -39,6 +39,7 @@ data:
     # Upload configuration (local for iteration 1)
     config :pleroma, Pleroma.Upload,
       uploader: Pleroma.Uploaders.Local,
+      base_url: "https://{{ .Values.akkoma.domain }}/media/",
       base_path: "/opt/akkoma/uploads"
 
     # Media proxy configuration
