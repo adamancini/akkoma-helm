@@ -1,0 +1,68 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags:
+      - 'chart-v*'
+
+jobs:
+  release:
+    name: Release Helm Chart
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Package Helm Chart
+        run: |
+          helm package charts/akkoma --destination .deploy
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: .deploy/*.tgz
+          generate_release_notes: true
+
+      - name: Publish to GitHub Pages (Chart Repository)
+        run: |
+          # Clone gh-pages branch
+          git clone --single-branch --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git gh-pages
+
+          # Copy new package
+          cp .deploy/*.tgz gh-pages/
+
+          # Update index
+          cd gh-pages
+          helm repo index . --url https://${{ github.repository_owner }}.github.io/akkoma-helm
+
+          # Commit and push
+          git add .
+          git commit -m "Release ${{ github.ref_name }}"
+          git push origin gh-pages
+
+      - name: Login to GitHub Container Registry (OCI)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Chart to OCI Registry
+        run: |
+          helm push .deploy/*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
