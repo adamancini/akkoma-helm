@@ -1,58 +1,48 @@
 # Multi-Stage Dockerfile for Akkoma OTP Release
-# Builds Akkoma from source and creates a minimal runtime image
+# Downloads pre-built OTP release and creates a minimal runtime image
 #
 # Build arguments:
-#   AKKOMA_VERSION: Git ref to build (tag, branch, commit) - default: v3.13.2
+#   AKKOMA_VERSION: Release version to download (stable, develop, or version tag) - default: stable
+#   AKKOMA_FLAVOUR: Platform flavour (amd64-musl for Alpine) - default: amd64-musl
 #
 # Build command:
 #   docker build -t akkoma:latest .
-#   docker build -t akkoma:v3.13.2 --build-arg AKKOMA_VERSION=v3.13.2 .
+#   docker build -t akkoma:stable --build-arg AKKOMA_VERSION=stable .
 #
 # Expected characteristics:
-#   - Build time: 10-15 minutes
+#   - Build time: 1-2 minutes (download only)
 #   - Image size: ~200MB
-#   - Architecture: amd64
+#   - Architecture: amd64 (Alpine/musl)
 
 # ============================================================================
-# Stage 1: Builder - Build OTP release from source
+# Stage 1: Downloader - Download pre-built OTP release
 # ============================================================================
-FROM elixir:1.14-alpine AS builder
+FROM alpine:3.19 AS downloader
 
-# Install build dependencies
+# Install download dependencies
 RUN apk add --no-cache \
-    git \
-    build-base \
-    cmake \
-    postgresql-client
+    curl \
+    unzip
 
-# Set build-time argument for Akkoma version
-ARG AKKOMA_VERSION=v3.13.2
+# Set build-time arguments
+ARG AKKOMA_VERSION=stable
+ARG AKKOMA_FLAVOUR=amd64-musl
 
-WORKDIR /build
+WORKDIR /tmp
 
-# Clone Akkoma source code at specified version
-RUN git clone --branch ${AKKOMA_VERSION} \
-    https://akkoma.dev/AkkomaGang/akkoma.git . && \
-    mix local.hex --force && \
-    mix local.rebar --force
+# Download and extract pre-built OTP release
+# Source: https://docs.akkoma.dev/stable/installation/otp_en/
+RUN echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR})..." && \
+    curl -f -L "https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip" \
+        -o akkoma.zip && \
+    unzip akkoma.zip && \
+    rm akkoma.zip
 
-# Set production environment for Mix
-ENV MIX_ENV=prod
-
-# Get dependencies (separate layer for better caching)
-RUN mix deps.get --only prod
-
-# Compile and build OTP release
-# Release name is 'pleroma' as defined in mix.exs line 36
-RUN mix do compile, release
-
-# Verify the release was created successfully
-# The release should be at: _build/prod/rel/pleroma
-RUN test -f /build/_build/prod/rel/pleroma/bin/pleroma || \
-    (echo "ERROR: OTP release not found at expected path" && \
-     echo "Expected: /build/_build/prod/rel/pleroma/bin/pleroma" && \
-     echo "Available releases:" && \
-     ls -la /build/_build/prod/rel/ 2>/dev/null || echo "No releases found" && \
+# Verify the release structure
+RUN test -d /tmp/release || \
+    (echo "ERROR: Release directory not found" && \
+     echo "Contents of /tmp:" && \
+     ls -la /tmp && \
      exit 1)
 
 # ============================================================================
@@ -61,13 +51,7 @@ RUN test -f /build/_build/prod/rel/pleroma/bin/pleroma || \
 FROM alpine:3.19
 
 # Install runtime dependencies
-# - ncurses-libs: Required by Erlang/BEAM VM
-# - postgresql-client: Database connectivity
-# - imagemagick: Image processing
-# - ffmpeg: Video processing
-# - exiftool: Metadata extraction
-# - libmagic, file: File type detection
-# - ca-certificates, openssl: TLS/HTTPS support
+# Based on: https://docs.akkoma.dev/stable/installation/otp_en/
 RUN apk add --no-cache \
     ncurses-libs \
     postgresql-client \
@@ -84,11 +68,9 @@ RUN apk add --no-cache \
 RUN addgroup -g 1000 akkoma && \
     adduser -D -u 1000 -G akkoma akkoma
 
-# Copy OTP release from builder stage
-# Ownership set to akkoma:akkoma for security
-# Release name 'pleroma' verified from mix.exs:36 (releases: [pleroma: [...]])
-COPY --from=builder --chown=akkoma:akkoma \
-    /build/_build/prod/rel/pleroma /opt/akkoma
+# Copy OTP release from downloader stage
+COPY --from=downloader --chown=akkoma:akkoma \
+    /tmp/release /opt/akkoma
 
 # Set working directory
 WORKDIR /opt/akkoma
@@ -100,6 +82,5 @@ USER akkoma
 EXPOSE 4000
 
 # Start Akkoma application
-# Binary name 'pleroma' verified from mix.exs:36 (releases: [pleroma: [...]])
 # Note: Kubernetes will manage health probes - no HEALTHCHECK directive
 CMD ["./bin/pleroma", "start"]

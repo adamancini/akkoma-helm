@@ -4,12 +4,11 @@ This document provides instructions for building the Akkoma OTP release containe
 
 ## Image Overview
 
-- **Base Images:**
-  - Builder stage: `elixir:1.14-alpine`
-  - Runtime stage: `alpine:3.19`
-- **Build Time:** 10-15 minutes (first build, no cache)
-- **Image Size:** ~200MB
-- **Architecture:** amd64 (arm64 support deferred to v0.2.0)
+- **Base Image:** `alpine:3.19`
+- **Build Method:** Downloads pre-built OTP release from Akkoma update server
+- **Build Time:** 1-2 minutes (download only)
+- **Image Size:** ~91MB
+- **Architecture:** amd64-musl (Alpine Linux)
 - **User:** Non-root (akkoma:akkoma, UID/GID 1000)
 - **Port:** 4000
 
@@ -17,14 +16,28 @@ This document provides instructions for building the Akkoma OTP release containe
 
 ### AKKOMA_VERSION
 
-Git reference to build from the Akkoma repository.
+Release version to download from the Akkoma update server.
 
 **Accepted values:**
-- Tags: `v3.13.2`, `v3.12.0`, etc.
-- Branches: `stable`, `develop`
-- Commits: Full commit SHA
+- `stable` - Latest stable release (recommended)
+- `develop` - Development/unstable branch
+- Version tags: `v3.17.0`, `v3.16.0`, etc. (if pre-built)
 
-**Default:** `v3.13.2`
+**Default:** `stable`
+
+### AKKOMA_FLAVOUR
+
+Platform flavour determines the build architecture.
+
+**Accepted values:**
+- `amd64-musl` - Alpine Linux x86_64 (default)
+- `arm64-musl` - Alpine Linux aarch64
+- `amd64` - Debian/Ubuntu x86_64
+- `arm64` - Debian/Ubuntu aarch64
+
+**Default:** `amd64-musl`
+
+**Note:** Only `amd64-musl` is currently tested and supported for this container image.
 
 ## Build Commands
 
@@ -34,13 +47,15 @@ Git reference to build from the Akkoma repository.
 docker build -t akkoma:latest .
 ```
 
+This downloads the `stable` branch pre-built release (currently v3.17.0).
+
 ### Build Specific Version
 
 ```bash
-docker build -t akkoma:v3.13.2 --build-arg AKKOMA_VERSION=v3.13.2 .
+docker build -t akkoma:v3.17.0 --build-arg AKKOMA_VERSION=stable .
 ```
 
-### Build from Branch
+### Build from Development Branch
 
 ```bash
 docker build -t akkoma:develop --build-arg AKKOMA_VERSION=develop .
@@ -49,8 +64,8 @@ docker build -t akkoma:develop --build-arg AKKOMA_VERSION=develop .
 ### Build with Custom Tag
 
 ```bash
-docker build -t ghcr.io/adamancini/akkoma:v3.13.2 \
-  --build-arg AKKOMA_VERSION=v3.13.2 .
+docker build -t ghcr.io/adamancini/akkoma:v3.17.0 \
+  --build-arg AKKOMA_VERSION=stable .
 ```
 
 ## Multi-Platform Builds
@@ -74,34 +89,25 @@ docker buildx build \
 
 ## Image Layers
 
-### Stage 1: Builder
+### Stage 1: Downloader
 
-1. Base: `elixir:1.14-alpine`
-2. Install build dependencies:
-   - git (source code retrieval)
-   - build-base (C compiler toolchain)
-   - cmake (build system)
-   - postgresql-client (database tools)
-3. Clone Akkoma source at specified version
-4. Install Hex and Rebar (Elixir/Erlang package managers)
-5. Fetch production dependencies (separate layer for caching)
-6. Compile and build OTP release
-7. **Verify release creation** - Confirms `_build/prod/rel/pleroma` exists
+1. Base: `alpine:3.19`
+2. Install download dependencies:
+   - curl (HTTP client)
+   - unzip (archive extraction)
+3. Download pre-built OTP release from Akkoma update server:
+   - URL: `https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip`
+   - Default: `stable` branch, `amd64-musl` flavour
+4. Extract release archive
+5. **Verify release structure** - Confirms `release/` directory exists
 
-**Release Name Verification:**
-The OTP release name is `pleroma` as defined in Akkoma's `mix.exs` file:
-```elixir
-releases: [
-  pleroma: [
-    include_executables_for: [:unix],
-    applications: [ex_syslogger: :load, syslog: :load, eldap: :transient],
-    steps: [:assemble, &put_otp_version/1, &copy_files/1, &copy_nginx_config/1],
-    config_providers: [{Pleroma.Config.ReleaseRuntimeProvider, []}]
-  ]
-]
-```
-
-This creates the release at `_build/prod/rel/pleroma/` with the executable at `bin/pleroma`.
+**Release Structure:**
+The pre-built OTP release contains:
+- `bin/pleroma` - Main application binary
+- `bin/pleroma_ctl` - Administrative control script
+- `lib/` - Compiled BEAM bytecode and dependencies
+- `releases/` - Release metadata and configuration
+- `erts-*/` - Erlang Runtime System
 
 ### Stage 2: Runtime
 
@@ -115,7 +121,7 @@ This creates the release at `_build/prod/rel/pleroma/` with the executable at `b
    - libmagic, file (file type detection)
    - ca-certificates, openssl (TLS/HTTPS)
 3. Create akkoma user/group (UID/GID 1000)
-4. Copy OTP release from builder
+4. Copy pre-built OTP release from downloader stage
 5. Set working directory and user
 6. Expose port 4000
 
@@ -196,7 +202,7 @@ After building, verify the image:
 docker images akkoma:latest
 ```
 
-Expected: ~200MB (compressed)
+Expected: ~91MB (actual size may vary by a few MB depending on release version)
 
 ### 2. Inspect Image Metadata
 
@@ -236,26 +242,26 @@ Expected: Version information or error about missing configuration (acceptable)
 
 ## Build Optimization
 
-### Dependency Caching
+### Download Caching
 
-The Dockerfile separates `mix deps.get` from `mix compile` to improve build caching:
+The Dockerfile uses a two-stage build to minimize image size:
 
-- **Layer 1:** `mix deps.get --only prod` - Cached unless dependencies change
-- **Layer 2:** `mix do compile, release` - Re-runs when source code changes
+- **Stage 1 (Downloader):** Downloads and extracts the OTP release
+- **Stage 2 (Runtime):** Contains only runtime dependencies and the release
 
-This optimization significantly reduces rebuild time when iterating on Akkoma source.
+Docker caches the download layer, so rebuilds are fast unless the `AKKOMA_VERSION` changes.
 
 ### Using Build Cache
-
-Docker caches layers for faster rebuilds. To maximize cache efficiency:
 
 ```bash
 # Clean build (no cache)
 docker build --no-cache -t akkoma:latest .
 
-# Use cache from previous build
+# Use cache from previous build (recommended)
 docker build -t akkoma:latest .
 ```
+
+The download will be cached and reused if the version hasn't changed.
 
 ### Build Arguments for CI/CD
 
@@ -264,7 +270,7 @@ docker build -t akkoma:latest .
 docker build \
   -t ghcr.io/${{ github.repository }}/akkoma:${{ github.sha }} \
   -t ghcr.io/${{ github.repository }}/akkoma:latest \
-  --build-arg AKKOMA_VERSION=v3.13.2 \
+  --build-arg AKKOMA_VERSION=stable \
   .
 ```
 
@@ -302,37 +308,28 @@ docker scout cves akkoma:latest
 
 ## Troubleshooting
 
-### Build Fails: Git Clone
+### Build Fails: Download Error
 
-**Error:** `fatal: unable to access 'https://akkoma.dev/...': Could not resolve host`
+**Error:** `curl: (22) The requested URL returned error: 404`
 
-**Solution:** Check network connectivity, firewall rules, DNS resolution
+**Cause:** The requested version or flavour doesn't have a pre-built release.
 
-### Build Fails: Mix Dependencies
-
-**Error:** `** (Mix) Could not fetch dependency`
-
-**Solution:** Build dependencies may be temporarily unavailable. Retry build.
-
-### Build Fails: OTP Release
-
-**Error:** `** (Mix) Release failed`
-
-**Solution:** Check Elixir/Erlang version compatibility, review build logs
+**Solution:**
+1. Check available releases at: https://akkoma-updates.s3-website.fr-par.scw.cloud/
+2. Use `stable` or `develop` branches (always available)
+3. Verify the AKKOMA_FLAVOUR matches your target platform
 
 ### Build Fails: Release Verification
 
-**Error:** `ERROR: OTP release not found at expected path`
+**Error:** `ERROR: Release directory not found`
 
-**Cause:** The release name in `mix.exs` may have changed in a different Akkoma version.
+**Cause:** The downloaded archive doesn't contain the expected `release/` directory.
 
 **Solution:**
-1. Check the build output for the actual release name
-2. Look at the `releases:` section in `mix.exs` for the version being built
-3. Verify the release was created: `ls -la _build/prod/rel/`
-4. Update Dockerfile paths if release name differs from `pleroma`
-
-**Expected:** For Akkoma v3.13.2 and compatible versions, the release name is `pleroma` as defined in `mix.exs:36`
+1. Check the download URL is accessible
+2. Verify the archive isn't corrupted
+3. Check network connectivity to S3 bucket
+4. Try rebuilding with `--no-cache`
 
 ### Runtime: Missing Configuration
 
