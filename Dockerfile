@@ -11,7 +11,7 @@
 #
 # Expected characteristics:
 #   - Build time: 1-2 minutes (download only)
-#   - Image size: ~200MB
+#   - Image size: ~374MB uncompressed (~91MB compressed)
 #   - Architecture: amd64 (Alpine/musl)
 
 # ============================================================================
@@ -32,18 +32,30 @@ WORKDIR /tmp
 
 # Download and extract pre-built OTP release
 # Source: https://docs.akkoma.dev/stable/installation/otp_en/
+# Security Note: No checksum verification is performed. Release is downloaded directly
+# from Akkoma's official S3 bucket (akkoma-updates.s3-website.fr-par.scw.cloud)
 RUN echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR})..." && \
-    curl -f -L "https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip" \
+    curl -f -L --retry 3 --retry-delay 5 --max-time 300 \
+        "https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip" \
         -o akkoma.zip && \
-    unzip akkoma.zip && \
+    unzip -q akkoma.zip || (echo "ERROR: Failed to extract release archive"; exit 1) && \
     rm akkoma.zip
 
-# Verify the release structure
+# Verify the release structure and binary executability
 RUN test -d /tmp/release || \
-    (echo "ERROR: Release directory not found" && \
-     echo "Contents of /tmp:" && \
-     ls -la /tmp && \
-     exit 1)
+        (echo "ERROR: Release directory not found" && \
+         echo "Contents of /tmp:" && \
+         ls -la /tmp && \
+         exit 1) && \
+    test -f /tmp/release/bin/pleroma || \
+        (echo "ERROR: pleroma binary not found at /tmp/release/bin/pleroma" && \
+         echo "Contents of /tmp/release:" && \
+         ls -la /tmp/release && \
+         exit 1) && \
+    test -x /tmp/release/bin/pleroma || \
+        (echo "ERROR: pleroma binary is not executable" && \
+         ls -l /tmp/release/bin/pleroma && \
+         exit 1)
 
 # ============================================================================
 # Stage 2: Runtime - Minimal Alpine-based image

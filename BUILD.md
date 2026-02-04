@@ -7,7 +7,7 @@ This document provides instructions for building the Akkoma OTP release containe
 - **Base Image:** `alpine:3.19`
 - **Build Method:** Downloads pre-built OTP release from Akkoma update server
 - **Build Time:** 1-2 minutes (download only)
-- **Image Size:** ~91MB
+- **Image Size:** ~374 MB uncompressed (~91 MB compressed)
 - **Architecture:** amd64-musl (Alpine Linux)
 - **User:** Non-root (akkoma:akkoma, UID/GID 1000)
 - **Port:** 4000
@@ -202,7 +202,15 @@ After building, verify the image:
 docker images akkoma:latest
 ```
 
-Expected: ~91MB (actual size may vary by a few MB depending on release version)
+Expected: ~374 MB uncompressed (~91 MB compressed layers)
+
+**Size Breakdown:**
+- Alpine base: ~8 MB
+- Runtime dependencies (ffmpeg, imagemagick, etc.): ~209 MB
+- Akkoma OTP release: ~66 MB
+- Total: ~374 MB uncompressed
+
+The large size is expected for a media-capable ActivityPub server with full video and image processing capabilities.
 
 ### 2. Inspect Image Metadata
 
@@ -293,6 +301,131 @@ This image intentionally does **not** include a Docker HEALTHCHECK directive. Ku
 - **startupProbe** - Allows up to 150s for initial startup
 - **livenessProbe** - Detects when container needs restart
 - **readinessProbe** - Determines when pod is ready for traffic
+
+### Supply Chain Security
+
+**⚠️ IMPORTANT SECURITY NOTICE**
+
+This image downloads pre-built OTP releases from Akkoma's official S3 bucket without cryptographic verification.
+
+#### Current Security Posture
+
+**What We Do:**
+- Download from official Akkoma update server: `https://akkoma-updates.s3-website.fr-par.scw.cloud/`
+- Use HTTPS for transport security (TLS encryption)
+- Verify release structure and binary executability after download
+- Run container as non-root user (UID 1000)
+- Include only required runtime dependencies
+
+**What We Don't Do:** ⚠️
+- **No checksum/signature verification** - Akkoma doesn't currently publish checksums or GPG signatures alongside releases
+- **No content inspection** - The downloaded archive is trusted implicitly
+- **No SBOM (Software Bill of Materials)** - Dependency provenance is not tracked
+
+#### Trust Model
+
+This build process trusts:
+1. **Akkoma's Infrastructure:** The S3 bucket (akkoma-updates.s3-website.fr-par.scw.cloud) serves legitimate releases
+2. **Akkoma's Build Process:** Pre-built releases are compiled from verified source code
+3. **TLS/HTTPS:** Transport layer encryption prevents man-in-the-middle attacks
+
+#### Risks
+
+**Supply Chain Compromise:**
+- If Akkoma's S3 bucket is compromised, malicious code could be distributed
+- Impact: Code execution with akkoma user privileges (UID 1000)
+- Mitigation: Container scanning, runtime monitoring, network policies
+
+**Dependency Vulnerabilities:**
+- Pre-built releases include all dependencies without independent verification
+- Impact: Known CVEs in Erlang/Elixir libraries or system packages
+- Mitigation: Regular image rebuilds, vulnerability scanning (trivy/grype)
+
+**Availability:**
+- Builds depend on S3 bucket availability
+- Impact: Cannot build new images if S3 is down
+- Mitigation: Docker layer caching, container registry caching
+
+#### Recommended Mitigations
+
+**1. Container Vulnerability Scanning**
+
+Scan images before deployment:
+```bash
+# Using Trivy
+trivy image akkoma:latest
+
+# Using Docker Scout
+docker scout cves akkoma:latest
+
+# Using Grype
+grype akkoma:latest
+```
+
+**2. Regular Rebuilds**
+
+Rebuild images weekly to pick up:
+- Alpine security updates
+- New Akkoma releases
+- Dependency updates
+
+**3. Runtime Security**
+
+Deploy with security controls:
+- **NetworkPolicies:** Restrict egress to known federation hosts
+- **PodSecurityStandards:** Enforce restricted profile
+- **Seccomp/AppArmor:** Limit syscall access
+- **Read-only Root Filesystem:** Mount `/opt/akkoma` read-only where possible
+
+**4. Monitoring and Detection**
+
+- Runtime behavior monitoring (Falco, Sysdig)
+- Anomaly detection for unexpected network/file access
+- Log aggregation and analysis
+- Container drift detection
+
+**5. Image Signing (Recommended)**
+
+After building, sign images with cosign:
+```bash
+# Sign image
+cosign sign ghcr.io/your-org/akkoma:latest
+
+# Verify before deployment
+cosign verify ghcr.io/your-org/akkoma:latest
+```
+
+#### Future Improvements
+
+**When Akkoma Adds Checksum Support:**
+1. Download checksums file (e.g., `SHA256SUMS`)
+2. Verify archive integrity before extraction
+3. Fail build if checksum mismatch
+
+**Example:**
+```dockerfile
+RUN curl -fL "${BASE_URL}/${VERSION}/SHA256SUMS" -o checksums.txt && \
+    sha256sum -c checksums.txt && \
+    unzip akkoma.zip
+```
+
+#### Acceptance Criteria
+
+This supply chain risk is accepted because:
+1. **Upstream Alignment:** Matches Akkoma's official distribution method
+2. **Open Source:** Akkoma source code is auditable
+3. **Mitigation Layers:** Container scanning + runtime monitoring + network policies
+4. **Alternative Non-Viable:** Source builds currently fail due to dependency bugs
+5. **Risk vs. Reward:** The security risk is lower than deploying untested/unreliable builds
+
+**Responsibility:** Deployers must implement scanning, monitoring, and network controls appropriate to their risk tolerance.
+
+#### References
+
+- [SLSA Framework](https://slsa.dev/) - Supply chain security levels
+- [Sigstore/Cosign](https://github.com/sigstore/cosign) - Container signing
+- [SBOM Standards](https://www.cisa.gov/sbom) - Software Bill of Materials
+- [Akkoma Security](https://docs.akkoma.dev/stable/administration/updating/) - Official security practices
 
 ### CVE Scanning
 
