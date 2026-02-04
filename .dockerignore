@@ -1,0 +1,40 @@
+# .dockerignore - Optimize Docker build context
+# Exclude files not needed during image build
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# GitHub workflows and templates
+.github/
+
+# Documentation
+*.md
+CLAUDE.md
+DESIGN.md
+README.md
+TASKS.md
+REVIEW-UPDATES.md
+
+# Helm charts (not needed for container build)
+charts/
+
+# YAML linting config
+.yamllint.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts (if any)
+*.log
+tmp/
+temp/
+
+# Worktree metadata
+.worktrees/
