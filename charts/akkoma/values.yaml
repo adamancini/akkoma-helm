@@ -24,9 +24,9 @@ image:
   tag: ""  # Defaults to Chart.appVersion (v3.17.0)
   pullPolicy: IfNotPresent
 
-# TLS configuration
+# Ingress configuration
 ingress:
-  enabled: false  # Disabled for iteration 1, will enable in iteration 5
+  enabled: false
   className: "nginx"
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -143,7 +143,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop: ["ALL"]
-  readOnlyRootFilesystem: false  # TODO: v0.2.0
+  readOnlyRootFilesystem: false
 
 # Pod annotations and labels
 podAnnotations: {}
