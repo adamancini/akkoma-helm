@@ -3,10 +3,10 @@ entries:
   akkoma:
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-02-06T16:20:32.817724-05:00"
+    created: "2026-02-06T17:25:39.875876-05:00"
     description: A Helm chart for deploying Akkoma, a federated social networking
       server (ActivityPub/Fediverse)
-    digest: 9fa4a851073e047eea346878a7f6a9b2b535309e3045f3c2e25089047dba0848
+    digest: 83f73fc994e0e50ee620983dc2e2638ae0ce31ce67ecde7897a04c8c87265d44
     home: https://github.com/adamancini/akkoma-helm
     keywords:
     - akkoma
@@ -27,4 +27,4 @@ entries:
     urls:
     - https://adamancini.github.io/akkoma-helm/akkoma-0.1.0.tgz
     version: 0.1.0
-generated: "2026-02-06T16:20:32.81725-05:00"
+generated: "2026-02-06T17:25:39.875424-05:00"
