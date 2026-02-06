@@ -40,14 +40,24 @@ ingress:
 #
 
 # External secrets (production recommendation)
+# When enabled, the chart will use an existing Secret instead of generating one
+# This is recommended for production to integrate with secret management solutions
+# like Sealed Secrets, External Secrets Operator, or Vault
 externalSecret:
   enabled: false
-  # When enabled, chart expects this Secret to exist with these keys:
+  # Name of the existing Secret to use
   name: ""
+  # Secret key names (customize if your Secret uses different keys)
   keys:
     secretKeyBase: "secret-key-base"
     signingSalt: "signing-salt"
     releaseCookie: "release-cookie"
+
+# Secret generation behavior (when externalSecret.enabled is false):
+# - On first install: Chart generates random secrets automatically
+# - On upgrades: Existing secrets are preserved using Helm lookup function
+# - If secret is deleted between upgrades, new secrets will be generated
+# WARNING: Deleting and regenerating secrets will invalidate user sessions
 
 # PostgreSQL configuration
 postgresql:
