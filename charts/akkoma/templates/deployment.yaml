@@ -109,6 +109,44 @@ spec:
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
+      # Download and install frontends if not already present
+      - name: install-frontends
+        image: alpine:3.19
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          if [ -d "/frontends/pleroma-fe/stable" ] && [ -d "/frontends/admin-fe/stable" ]; then
+            echo "Frontends already installed, skipping"
+            exit 0
+          fi
+          FRONTEND_BASE="https://akkoma-updates.s3-website.fr-par.scw.cloud/frontend/stable"
+          echo "Downloading pleroma-fe (akkoma-fe)..."
+          wget -q "${FRONTEND_BASE}/akkoma-fe.zip" -O /tmp/akkoma-fe.zip
+          mkdir -p /tmp/akkoma-fe
+          unzip -q -o /tmp/akkoma-fe.zip -d /tmp/akkoma-fe
+          mkdir -p /frontends/pleroma-fe/stable
+          mv /tmp/akkoma-fe/dist/* /frontends/pleroma-fe/stable/ 2>/dev/null || mv /tmp/akkoma-fe/* /frontends/pleroma-fe/stable/
+          rm -rf /tmp/akkoma-fe /tmp/akkoma-fe.zip
+          echo "Downloading admin-fe..."
+          wget -q "${FRONTEND_BASE}/admin-fe.zip" -O /tmp/admin-fe.zip
+          mkdir -p /tmp/admin-fe
+          unzip -q -o /tmp/admin-fe.zip -d /tmp/admin-fe
+          mkdir -p /frontends/admin-fe/stable
+          mv /tmp/admin-fe/dist/* /frontends/admin-fe/stable/ 2>/dev/null || mv /tmp/admin-fe/* /frontends/admin-fe/stable/
+          rm -rf /tmp/admin-fe /tmp/admin-fe.zip
+          echo "Frontends installed!"
+          ls /frontends/pleroma-fe/stable/ | head -5
+          ls /frontends/admin-fe/stable/ | head -5
+        volumeMounts:
+        - name: frontends
+          mountPath: /frontends
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
       containers:
       - name: akkoma
         {{- with .Values.securityContext }}
@@ -188,11 +226,21 @@ spec:
         - name: config
           mountPath: /etc/akkoma
           readOnly: true
+        - name: uploads
+          mountPath: /opt/akkoma/uploads
+        - name: frontends
+          mountPath: /opt/akkoma/instance/static/frontends
       volumes:
       - name: config
         configMap:
           name: {{ include "akkoma.fullname" . }}-config
           defaultMode: 0640  # Remove world-readable permissions
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: {{ include "akkoma.fullname" . }}-uploads
+      - name: frontends
+        persistentVolumeClaim:
+          claimName: {{ include "akkoma.fullname" . }}-frontends
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
