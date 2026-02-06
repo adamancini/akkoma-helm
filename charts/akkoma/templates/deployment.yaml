@@ -31,6 +31,84 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+      # Wait for PostgreSQL to be ready before starting Akkoma
+      - name: wait-for-db
+        image: postgres:15-alpine
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h {{ include "akkoma.postgresql.host" . }} -p 5432 -U {{ .Values.postgresql.username }}; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+          echo "PostgreSQL is ready!"
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.postgresql.secretName" . }}
+              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 999  # postgres user
+      # Run database migrations before starting Akkoma
+      - name: db-migrate
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - |
+          echo "Running database migrations..."
+          /opt/akkoma/bin/pleroma_ctl migrate
+          echo "Migrations complete!"
+        env:
+        # Configuration file path
+        - name: PLEROMA_CONFIG_PATH
+          value: /etc/akkoma/prod.secret.exs
+        # Application secrets (from generated or external secret)
+        - name: RELEASE_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.releaseCookie | default "release-cookie" }}
+        - name: SECRET_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.secretKeyBase | default "secret-key-base" }}
+        - name: SIGNING_SALT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.secretName" . }}
+              key: {{ .Values.externalSecret.keys.signingSalt | default "signing-salt" }}
+        # Database connection details
+        - name: DB_HOST
+          value: {{ include "akkoma.postgresql.host" . }}
+        - name: DB_NAME
+          value: {{ .Values.postgresql.database }}
+        - name: DB_USER
+          value: {{ .Values.postgresql.username }}
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "akkoma.postgresql.secretName" . }}
+              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/akkoma
+          readOnly: true
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       containers:
       - name: akkoma
         {{- with .Values.securityContext }}

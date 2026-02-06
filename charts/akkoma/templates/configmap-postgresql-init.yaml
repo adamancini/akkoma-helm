@@ -1,0 +1,36 @@
+{{- if not .Values.postgresql.external.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "akkoma.fullname" . }}-postgresql-init
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+data:
+  01-init-extensions.sql: |
+    -- Akkoma PostgreSQL Initialization Script
+    -- This script creates required PostgreSQL extensions for Akkoma
+    -- It is idempotent and safe to run multiple times
+
+    -- Connect to the akkoma database
+    \c {{ .Values.postgresql.database }};
+
+    -- Create required extensions
+    -- citext: Case-insensitive text type (required for user handles)
+    CREATE EXTENSION IF NOT EXISTS citext;
+
+    -- pg_trgm: Trigram matching for text search
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+    -- uuid-ossp: UUID generation functions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+    -- Verify extensions were created
+    \dx
+
+    -- Grant all privileges on database to akkoma user
+    GRANT ALL PRIVILEGES ON DATABASE {{ .Values.postgresql.database }} TO {{ .Values.postgresql.username }};
+
+    -- Log completion
+    \echo 'Akkoma database initialization complete'
+{{- end }}
