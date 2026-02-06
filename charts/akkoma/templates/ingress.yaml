@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "akkoma.fullname" . }}
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ .Values.akkoma.domain }}
+    secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" (include "akkoma.fullname" .)) }}
+  {{- end }}
+  rules:
+  - host: {{ .Values.akkoma.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "akkoma.fullname" . }}
+            port:
+              number: 4000
+{{- end }}

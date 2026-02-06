@@ -1,6 +1,6 @@
 Thank you for installing {{ .Chart.Name }}!
 
-Your Akkoma instance is being deployed.
+Your Akkoma instance is being deployed to {{ .Values.akkoma.domain }}.
 
 1. Get the application status:
    kubectl get pods -l app.kubernetes.io/name={{ include "akkoma.name" . }}
@@ -8,16 +8,31 @@ Your Akkoma instance is being deployed.
 2. View logs:
    kubectl logs -f deployment/{{ include "akkoma.fullname" . }}
 
-3. Access the application (port-forward for iteration 1):
+{{- if .Values.ingress.enabled }}
+
+3. Access your instance:
+   {{- if .Values.ingress.tls.enabled }}
+   https://{{ .Values.akkoma.domain }}
+   {{- else }}
+   http://{{ .Values.akkoma.domain }}
+   {{- end }}
+{{- else }}
+
+3. Access the application (port-forward):
    kubectl port-forward svc/{{ include "akkoma.fullname" . }} 4000:4000
    http://localhost:4000
+{{- end }}
 
 4. Create an admin user (after pods are running):
    kubectl exec -it deployment/{{ include "akkoma.fullname" . }} -- \
-     ./bin/pleroma_ctl user new admin {{ .Values.akkoma.adminEmail }} --admin
+     /opt/akkoma/bin/pleroma_ctl user new admin {{ .Values.akkoma.adminEmail }} --admin
 
-WARNING: Iteration 1 uses hardcoded secrets for testing only.
-         NOT suitable for production use.
+{{- if not .Values.externalSecret.enabled }}
+NOTE: Application secrets were auto-generated on first install.
+      Secrets persist across upgrades. For production, consider using
+      externalSecret to manage secrets with your preferred tool
+      (Sealed Secrets, External Secrets Operator, Vault).
+{{- end }}
 
 For more information:
 - Akkoma Documentation: https://docs.akkoma.dev/

@@ -1,0 +1,51 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "akkoma.fullname" . }}
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "akkoma.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          {{- toYaml .Values.networkPolicy.ingressControllerLabels | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 4000
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow PostgreSQL connection
+  - to:
+    - podSelector:
+        matchLabels:
+          {{- include "akkoma.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow outbound HTTPS for federation
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+{{- end }}

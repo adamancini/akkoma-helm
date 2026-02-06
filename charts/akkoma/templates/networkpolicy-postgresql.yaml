@@ -1,0 +1,35 @@
+{{- if and .Values.networkPolicy.enabled (not .Values.postgresql.external.enabled) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "akkoma.fullname" . }}-postgresql
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "akkoma.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: database
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Only allow connections from Akkoma pods
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "akkoma.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}

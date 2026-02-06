@@ -110,9 +110,16 @@ instance:
   # Instance description
   description: ""
 
-# Network security (will be enabled in iteration 5)
+# Network security
+# When enabled, restricts traffic to only necessary connections:
+# - Akkoma: ingress from ingress controller, egress to PostgreSQL/DNS/HTTPS (federation)
+# - PostgreSQL: ingress from Akkoma pods only, egress for DNS
 networkPolicy:
   enabled: false
+  # Labels to identify the ingress controller namespace
+  # Adjust based on your ingress controller installation
+  ingressControllerLabels:
+    kubernetes.io/metadata.name: ingress-nginx
 
 # Resource limits - NO CPU LIMITS (allow BEAM bursting)
 resources:
