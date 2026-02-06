@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recreate deployment strategy (single-instance pattern)
 - No CPU limits (allows BEAM scheduler bursting)
 - ConfigMap-based Elixir configuration with environment variable injection
+- Admin-FE database configuration management (configurable_from_database)
 - Progressive disclosure values.yaml structure
 
 ### Known Limitations

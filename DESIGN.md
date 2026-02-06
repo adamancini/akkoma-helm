@@ -1598,7 +1598,7 @@ curl https://akkoma.example.com/.well-known/webfinger?resource=acct:admin@akkoma
 - [ ] High-availability PostgreSQL (if bundled object storage included)
 - [ ] Migration tooling (PVC → S3)
 - [ ] Media pruning CronJob
-- [ ] NetworkPolicy templates
+- [x] NetworkPolicy templates (shipped in v0.1.0)
 - [ ] PodDisruptionBudget (if HA supported)
 
 ### Beyond v1.0
