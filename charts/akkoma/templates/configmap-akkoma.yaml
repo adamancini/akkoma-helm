@@ -22,7 +22,8 @@ data:
       notify_email: "{{ .Values.akkoma.adminEmail }}",
       limit: {{ .Values.instance.characterLimit }},
       registrations_open: {{ .Values.instance.registrationsOpen }},
-      upload_limit: {{ .Values.instance.uploadLimit }}
+      upload_limit: {{ .Values.instance.uploadLimit }},
+      static_dir: "/opt/akkoma/instance/static"
       {{- if .Values.instance.description }},
       description: "{{ .Values.instance.description }}"
       {{- end }}
@@ -36,7 +37,15 @@ data:
       hostname: System.get_env("DB_HOST"),
       pool_size: 10
 
-    # Upload configuration (local for iteration 1)
+    # Allow admin-fe to manage configuration from the database
+    config :pleroma, configurable_from_database: true
+
+    # Frontend configuration
+    config :pleroma, :frontends,
+      primary: %{"name" => "pleroma-fe", "ref" => "stable"},
+      admin: %{"name" => "admin-fe", "ref" => "stable"}
+
+    # Upload configuration
     config :pleroma, Pleroma.Upload,
       uploader: Pleroma.Uploaders.Local,
       base_url: "https://{{ .Values.akkoma.domain }}/media/",
