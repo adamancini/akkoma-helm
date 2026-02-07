@@ -19,7 +19,7 @@
 # ============================================================================
 # Stage 1: Downloader - Download pre-built OTP release
 # ============================================================================
-FROM alpine:3.19 AS downloader
+FROM alpine:3.23 AS downloader
 
 # Install download dependencies
 RUN apk add --no-cache \
@@ -61,7 +61,7 @@ RUN test -d /tmp/release || \
 # ============================================================================
 # Stage 2: Runtime - Minimal Alpine-based image
 # ============================================================================
-FROM alpine:3.19
+FROM alpine:3.23
 
 # Install runtime dependencies
 # Based on: https://docs.akkoma.dev/stable/installation/otp_en/
