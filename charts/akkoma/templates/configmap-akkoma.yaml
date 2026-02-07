@@ -95,6 +95,9 @@ data:
       export_prometheus_metrics: true
     {{- end }}
 
+    # Disable tzdata autoupdate (read-only root filesystem)
+    config :tzdata, :autoupdate, :disabled
+
     # Logging configuration
     config :logger, :console,
       format: "$time $metadata[$level] $message\n",
