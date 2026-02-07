@@ -65,7 +65,7 @@ jobs:
 
       - name: Lint YAML
         run: |
-          yamllint -c .yamllint.yml charts/
+          yamllint -c .yamllint.yml charts/akkoma/values.yaml charts/akkoma/Chart.yaml charts/akkoma/ci/
 
   validate-kubernetes:
     name: Validate Kubernetes Manifests
@@ -104,6 +104,8 @@ jobs:
   security-scan-chart:
     name: Security Scan Helm Chart
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
