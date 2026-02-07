@@ -35,7 +35,7 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "version=v${GITHUB_REF_NAME#chart-v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${GITHUB_REF_NAME#chart-}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
