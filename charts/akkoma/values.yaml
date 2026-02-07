@@ -149,6 +149,14 @@ metrics:
     interval: 30s
     # Additional labels for the ServiceMonitor (e.g. release: prometheus)
     labels: {}
+  # Grafana dashboard ConfigMap (requires Grafana sidecar for auto-discovery)
+  grafana:
+    enabled: false
+    # Labels applied to the ConfigMap for Grafana sidecar discovery
+    labels:
+      grafana_dashboard: "1"
+    # Optional annotations for the ConfigMap
+    annotations: {}
 
 # Network security
 # When enabled, restricts traffic to only necessary connections:
