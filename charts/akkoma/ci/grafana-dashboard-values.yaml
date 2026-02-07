@@ -1,0 +1,13 @@
+# CI test: Grafana dashboard ConfigMap enabled
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+metrics:
+  enabled: true
+  grafana:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+    annotations:
+      description: "Akkoma Grafana dashboard"
