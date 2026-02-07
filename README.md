@@ -363,7 +363,7 @@ kubectl delete pvc data-akkoma-postgresql-0
 Ingress (HTTPS) -> Service -> Deployment
                                  |-- init: wait-for-db (postgres:15-alpine)
                                  |-- init: db-migrate (akkoma image)
-                                 |-- init: install-frontends (alpine:3.19)
+                                 |-- init: install-frontends (alpine:3.23)
                                  +-- main: akkoma (port 4000)
                                        |-- /etc/akkoma (ConfigMap, read-only)
                                        |-- /opt/akkoma/uploads (PVC)

@@ -137,7 +137,7 @@ spec:
         {{- end }}
       # Download and install frontends if not already present
       - name: install-frontends
-        image: alpine:3.19
+        image: alpine:3.23
         imagePullPolicy: IfNotPresent
         command:
         - sh

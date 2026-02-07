@@ -110,7 +110,7 @@ FROM elixir:1.14-alpine AS builder
 RUN mix release
 
 # Stage 2: Runtime (same benefits as pre-built)
-FROM alpine:3.19
+FROM alpine:3.23
 COPY --from=builder /build/_build/prod/rel/pleroma /opt/akkoma
 ```
 
@@ -271,7 +271,7 @@ RUN mix deps.get --only prod && \
     mix do compile, release
 
 # Stage 2: Runtime image
-FROM alpine:3.19
+FROM alpine:3.23
 
 # Install runtime dependencies
 RUN apk add --no-cache \

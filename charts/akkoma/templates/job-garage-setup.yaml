@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: garage-setup
-        image: alpine:3.19
+        image: alpine:3.23
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
