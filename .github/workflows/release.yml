@@ -33,9 +33,14 @@ jobs:
         run: |
           helm package charts/akkoma --destination .deploy
 
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#chart-v}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ steps.version.outputs.version }}
           files: .deploy/*.tgz
           generate_release_notes: true
 
