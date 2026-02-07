@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-02-07
+
+### Fixed
+
+- Disable tzdata autoupdate to prevent crashes on read-only root filesystem
+- Fix release workflow git config not applying to gh-pages clone
+- Scope yamllint to non-template files (Helm templates are not valid YAML)
+- Add `security-events: write` permission for Trivy SARIF upload in CI
+
 ## [0.2.0] - 2026-02-07
 
 ### Added
@@ -72,5 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `helm template --dry-run` shows different secret values than actual install (expected Helm lookup behavior)
 - Uninstall/reinstall requires deleting PostgreSQL PVC to avoid password mismatch
 
+[0.2.1]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.1
 [0.2.0]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.1.0
