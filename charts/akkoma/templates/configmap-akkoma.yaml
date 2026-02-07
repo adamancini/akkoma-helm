@@ -22,7 +22,7 @@ data:
       notify_email: "{{ .Values.akkoma.adminEmail }}",
       limit: {{ .Values.instance.characterLimit }},
       registrations_open: {{ .Values.instance.registrationsOpen }},
-      upload_limit: {{ .Values.instance.uploadLimit }},
+      upload_limit: {{ int .Values.instance.uploadLimit }},
       static_dir: "/opt/akkoma/instance/static"
       {{- if .Values.instance.description }},
       description: "{{ .Values.instance.description }}"
@@ -86,7 +86,7 @@ data:
       enabled: true,
       proxy_opts: [
         redirect_on_failure: true,
-        max_body_length: {{ .Values.instance.uploadLimit }}
+        max_body_length: {{ int .Values.instance.uploadLimit }}
       ]
 
     {{- if .Values.metrics.enabled }}

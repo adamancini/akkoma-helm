@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-07
+
+### Fixed
+
+- Fix login/upload crash caused by Helm rendering `upload_limit` as scientific notation (`1.6e+07`), which Elixir parsed as a float instead of an integer, crashing Plug.Parsers.MULTIPART on `POST /oauth/token`
+
 ## [0.3.0] - 2026-02-07
 
 ### Added
