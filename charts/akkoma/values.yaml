@@ -150,6 +150,21 @@ metrics:
     # Additional labels for the ServiceMonitor (e.g. release: prometheus)
     labels: {}
 
+# Media pruning CronJob
+# Runs pleroma_ctl database prune_objects to clean up remote media
+mediaPruning:
+  enabled: false
+  schedule: "0 3 * * 0"  # 3 AM every Sunday
+  options:
+    keepFollowed: "posts"  # none, posts, full
+    keepThreads: true
+    keepNonPublic: true
+    limit: 0
+    pruneOrphanedActivities: true
+    vacuum: false
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
 # Network security
 # When enabled, restricts traffic to only necessary connections:
 # - Akkoma: ingress from ingress controller, egress to PostgreSQL/DNS/HTTPS (federation)
