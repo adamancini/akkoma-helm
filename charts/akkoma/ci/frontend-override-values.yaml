@@ -1,0 +1,10 @@
+# CI test: Frontend version override with non-default refs
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+frontends:
+  pleromaFe:
+    ref: "develop"
+  adminFe:
+    ref: "develop"

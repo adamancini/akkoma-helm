@@ -126,6 +126,18 @@ instance:
   # Instance description
   description: ""
 
+# Frontend version overrides
+# Control which version of each frontend is installed
+# ref: version/branch to install (e.g. "stable", "develop", or a commit hash)
+# url: optional full URL to a custom build zip (overrides the default CDN URL)
+frontends:
+  pleromaFe:
+    ref: "stable"
+    url: ""  # Custom build URL override (e.g. https://my-cdn.example.com/akkoma-fe.zip)
+  adminFe:
+    ref: "stable"
+    url: ""  # Custom build URL override (e.g. https://my-cdn.example.com/admin-fe.zip)
+
 # Garage S3-compatible object storage (optional)
 # When enabled, deploys Garage alongside Akkoma for self-hosted media storage
 # Automatically configures Akkoma to use Garage as its S3 backend
