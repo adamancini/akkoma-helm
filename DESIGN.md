@@ -59,10 +59,18 @@ This document outlines the design for a production-ready Helm chart to deploy Ak
 - ✅ **NOTES.txt** - Post-install instructions and warnings
 - ✅ **Helm tests** - Automated connection validation
 
+### Shipped in v0.2.0
+
+- **Read-only root filesystem** with tmpfs mounts for BEAM VM
+- **Multi-architecture support** (amd64 + arm64)
+- **Object storage** via Garage subchart and external S3 support
+- **Prometheus metrics** with ServiceMonitor
+- **Backup/restore documentation**
+- **CI improvements** with multi-version K8s validation
+
 ### Deferred to Future Releases
 
-- **v0.2.0**: Object storage bundling (SeaweedFS), multi-arch support, read-only root filesystem
-- **v0.3.0**: Backup/restore automation, restricted Pod Security Standards compliance
+- **v0.3.0**: Grafana dashboard, HA PostgreSQL, media pruning CronJob
 - **Future**: Horizontal scaling (if Akkoma adds support)
 
 ---
@@ -1579,27 +1587,30 @@ curl https://akkoma.example.com/.well-known/webfinger?resource=acct:admin@akkoma
 
 ## Future Roadmap
 
-### v0.2.0 (Next Release)
+### v0.2.0 (Shipped)
 
 **Focus:** Production hardening and operational features
 
-- [ ] Restricted Pod Security Standards (read-only root filesystem)
-- [ ] Multi-architecture support (amd64 + arm64)
-- [ ] Object storage bundling (SeaweedFS evaluation)
-- [ ] Backup/restore documentation (Velero/Restic)
-- [ ] Prometheus metrics enabled by default (with ServiceMonitor)
-- [ ] Grafana dashboard
-- [ ] Automated testing in CI (helm lint, kubeconform, chart-testing)
+- [x] Restricted Pod Security Standards (read-only root filesystem)
+- [x] Multi-architecture support (amd64 + arm64)
+- [x] Object storage bundling (Garage, replacing SeaweedFS plan)
+- [x] External S3 storage support (AWS, Backblaze B2, Wasabi, Cloudflare R2)
+- [x] Backup/restore documentation
+- [x] Prometheus metrics with ServiceMonitor
+- [x] Automated testing in CI (helm lint, kubeconform, chart-testing, multi-version K8s)
+- [ ] Grafana dashboard (deferred to v0.3.0)
 
-### v0.3.0 (Future)
+### v0.3.0 (Next Release)
 
-**Focus:** Advanced deployment patterns
+**Focus:** Advanced deployment patterns and observability
 
-- [ ] High-availability PostgreSQL (if bundled object storage included)
-- [ ] Migration tooling (PVC → S3)
+- [ ] Grafana dashboard (BEAM VM metrics, HTTP rates, federation activity)
+- [ ] High-availability PostgreSQL (CloudNativePG operator support)
+- [ ] Migration tooling (PVC to S3)
 - [ ] Media pruning CronJob
 - [x] NetworkPolicy templates (shipped in v0.1.0)
 - [ ] PodDisruptionBudget (if HA supported)
+- [ ] Frontend version override (customize pleroma-fe/admin-fe versions)
 
 ### Beyond v1.0
 

@@ -89,12 +89,28 @@ postgresql:
 
 # Storage configuration
 storage:
+  # Upload storage backend: "local" (PVC) or "s3" (S3-compatible)
+  type: local
   uploads:
     size: 50Gi
     storageClass: ""
   frontends:
     size: 5Gi
     storageClass: ""
+  # S3-compatible storage (used when storage.type is "s3")
+  s3:
+    # S3 endpoint (e.g. s3.amazonaws.com, s3.us-west-2.amazonaws.com, s3.garage.localhost)
+    endpoint: ""
+    region: "us-east-1"
+    bucket: "akkoma-uploads"
+    # Public URL for media (e.g. https://media.example.com or https://bucket.s3.amazonaws.com)
+    # If empty, defaults to https://<domain>/media/
+    baseUrl: ""
+    # Use an existing Secret for S3 credentials instead of creating one
+    existingSecret: ""
+    # S3 credentials (ignored if existingSecret is set)
+    accessKeyId: ""
+    secretAccessKey: ""
 
 # Instance behavior
 instance:
@@ -109,6 +125,30 @@ instance:
 
   # Instance description
   description: ""
+
+# Garage S3-compatible object storage (optional)
+# When enabled, deploys Garage alongside Akkoma for self-hosted media storage
+# Automatically configures Akkoma to use Garage as its S3 backend
+garage:
+  enabled: false
+  # Override Garage subchart values
+  persistence:
+    meta:
+      size: 1Gi
+    data:
+      size: 50Gi
+
+# Prometheus metrics
+# Akkoma has built-in metrics at /api/v1/akkoma/metrics
+# Requires export_prometheus_metrics: true in Akkoma config
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    # Scrape interval
+    interval: 30s
+    # Additional labels for the ServiceMonitor (e.g. release: prometheus)
+    labels: {}
 
 # Network security
 # When enabled, restricts traffic to only necessary connections:
@@ -143,7 +183,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop: ["ALL"]
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
 
 # Pod annotations and labels
 podAnnotations: {}

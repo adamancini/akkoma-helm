@@ -1,0 +1,14 @@
+# CI test: S3 storage mode
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+storage:
+  type: s3
+  s3:
+    endpoint: s3.amazonaws.com
+    region: us-east-1
+    bucket: akkoma-uploads
+    baseUrl: https://media.example.com
+    accessKeyId: AKIAIOSFODNN7EXAMPLE
+    secretAccessKey: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY

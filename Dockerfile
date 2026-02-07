@@ -3,16 +3,18 @@
 #
 # Build arguments:
 #   AKKOMA_VERSION: Release version to download (stable, develop, or version tag) - default: stable
-#   AKKOMA_FLAVOUR: Platform flavour (amd64-musl for Alpine) - default: amd64-musl
 #
 # Build command:
 #   docker build -t akkoma:latest .
 #   docker build -t akkoma:stable --build-arg AKKOMA_VERSION=stable .
 #
+# Multi-arch build:
+#   docker buildx build --platform linux/amd64,linux/arm64 -t akkoma:latest .
+#
 # Expected characteristics:
 #   - Build time: 1-2 minutes (download only)
 #   - Image size: ~374MB uncompressed (~91MB compressed)
-#   - Architecture: amd64 (Alpine/musl)
+#   - Architecture: amd64, arm64
 
 # ============================================================================
 # Stage 1: Downloader - Download pre-built OTP release
@@ -26,15 +28,14 @@ RUN apk add --no-cache \
 
 # Set build-time arguments
 ARG AKKOMA_VERSION=stable
-ARG AKKOMA_FLAVOUR=amd64-musl
+ARG TARGETARCH
 
 WORKDIR /tmp
 
-# Download and extract pre-built OTP release
-# Source: https://docs.akkoma.dev/stable/installation/otp_en/
-# Security Note: No checksum verification is performed. Release is downloaded directly
-# from Akkoma's official S3 bucket (akkoma-updates.s3-website.fr-par.scw.cloud)
-RUN echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR})..." && \
+# Select the correct flavour based on target architecture
+# amd64 -> amd64-musl, arm64 -> arm64-musl
+RUN AKKOMA_FLAVOUR="${TARGETARCH}-musl" && \
+    echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR})..." && \
     curl -f -L --retry 3 --retry-delay 5 --max-time 300 \
         "https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip" \
         -o akkoma.zip && \

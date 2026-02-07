@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-07
+
+### Added
+
+- Read-only root filesystem (`readOnlyRootFilesystem: true`) for all containers
+- tmpfs volume at `/tmp` (64Mi, memory-backed) for BEAM VM scratch space
+- `RELEASE_TMP` and `ERL_CRASH_DUMP` environment variables for Elixir release compatibility
+- Prometheus metrics support (`metrics.enabled`) with built-in Akkoma metrics endpoint
+- ServiceMonitor resource for Prometheus Operator (`metrics.serviceMonitor.enabled`)
+- Prometheus pod annotations for annotation-based discovery
+- External S3 storage support (`storage.type: s3`) for AWS, Backblaze B2, Wasabi, Cloudflare R2
+- S3 credentials via Kubernetes Secret (generated or existing)
+- Garage S3-compatible object storage subchart (`garage.enabled`)
+- Automated Garage setup Job (layout assignment, key creation, bucket provisioning)
+- RBAC resources for Garage setup Job (namespace-scoped Secret management)
+- CI test value files for all configuration modes (default, external-db, external-secrets, s3, metrics, garage, full)
+- Multi-version Kubernetes schema validation in CI (1.28-1.31)
+- Multi-architecture container image support (amd64 + arm64)
+- QEMU setup in build workflow for cross-platform builds
+
+### Changed
+
+- `readOnlyRootFilesystem` flipped from `false` to `true` in default values
+- All init containers now have `readOnlyRootFilesystem: true`
+- `wait-for-db` init container now has explicit `readOnlyRootFilesystem: true`
+- `install-frontends` init container now mounts tmpfs at `/tmp` for downloads
+- Dockerfile now uses `TARGETARCH` for automatic architecture selection
+- Updated GitHub Actions to latest versions (Helm v3.16.0, chart-testing v2.7.0, kind v1.10.0, build-push-action v6, scan-action v4, gh-release v2)
+- CI now validates all `charts/akkoma/ci/*.yaml` value files during lint
+- Kubeconform version bumped to v0.6.7
+
+### Fixed
+
+- Removed hardcoded `AKKOMA_FLAVOUR=amd64-musl` from Dockerfile (now derived from `TARGETARCH`)
+
 ## [0.1.0] - 2026-02-06
 
 ### Added
@@ -33,10 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Known Limitations
 
 - Single replica only (Akkoma does not support horizontal scaling)
-- No S3 upload support (local storage only, S3 templated but untested)
-- No read-only root filesystem (planned for v0.2.0)
 - Frontend versions pinned to "stable" (no version override)
 - `helm template --dry-run` shows different secret values than actual install (expected Helm lookup behavior)
 - Uninstall/reinstall requires deleting PostgreSQL PVC to avoid password mismatch
 
+[0.2.0]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.1.0

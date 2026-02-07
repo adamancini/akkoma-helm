@@ -1,0 +1,40 @@
+# CI test: Full production configuration
+akkoma:
+  domain: social.example.com
+  adminEmail: admin@social.example.com
+  instanceName: "Test Instance"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+  tls:
+    enabled: true
+    secretName: akkoma-tls
+
+instance:
+  characterLimit: 5000
+  registrationsOpen: false
+  uploadLimit: 16000000
+  description: "A test Akkoma instance"
+
+networkPolicy:
+  enabled: true
+  ingressControllerLabels:
+    kubernetes.io/metadata.name: ingress-nginx
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi

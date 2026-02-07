@@ -1,6 +1,7 @@
 # Helm
 *.tgz
-charts/*/charts/
+# Ignore downloaded chart dependencies, but track vendored subcharts
+charts/*/charts/*.tgz
 .helm/
 
 # Kubernetes

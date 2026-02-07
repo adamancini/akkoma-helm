@@ -46,10 +46,40 @@ data:
       admin: %{"name" => "admin-fe", "ref" => "stable"}
 
     # Upload configuration
+    {{- if .Values.garage.enabled }}
+    config :pleroma, Pleroma.Upload,
+      uploader: Pleroma.Uploaders.S3,
+      base_url: "https://{{ .Values.akkoma.domain }}/media/"
+
+    config :ex_aws, :s3,
+      access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
+      secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
+      host: "{{ .Release.Name }}-garage",
+      port: 3900,
+      scheme: "http://",
+      region: "garage"
+
+    config :pleroma, Pleroma.Uploaders.S3,
+      bucket: "akkoma-uploads"
+    {{- else if eq .Values.storage.type "s3" }}
+    config :pleroma, Pleroma.Upload,
+      uploader: Pleroma.Uploaders.S3,
+      base_url: "{{ .Values.storage.s3.baseUrl | default (printf "https://%s/media/" .Values.akkoma.domain) }}"
+
+    config :ex_aws, :s3,
+      access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
+      secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
+      host: "{{ .Values.storage.s3.endpoint }}",
+      region: "{{ .Values.storage.s3.region }}"
+
+    config :pleroma, Pleroma.Uploaders.S3,
+      bucket: "{{ .Values.storage.s3.bucket }}"
+    {{- else }}
     config :pleroma, Pleroma.Upload,
       uploader: Pleroma.Uploaders.Local,
       base_url: "https://{{ .Values.akkoma.domain }}/media/",
       base_path: "/opt/akkoma/uploads"
+    {{- end }}
 
     # Media proxy configuration
     config :pleroma, :media_proxy,
@@ -58,6 +88,12 @@ data:
         redirect_on_failure: true,
         max_body_length: {{ .Values.instance.uploadLimit }}
       ]
+
+    {{- if .Values.metrics.enabled }}
+    # Prometheus metrics endpoint
+    config :pleroma, :instance,
+      export_prometheus_metrics: true
+    {{- end }}
 
     # Logging configuration
     config :logger, :console,

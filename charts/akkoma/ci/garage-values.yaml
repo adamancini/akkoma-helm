@@ -1,0 +1,12 @@
+# CI test: Garage object storage enabled
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+garage:
+  enabled: true
+  persistence:
+    meta:
+      size: 1Gi
+    data:
+      size: 10Gi

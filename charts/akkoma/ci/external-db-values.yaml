@@ -1,0 +1,14 @@
+# CI test: External PostgreSQL configuration
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+postgresql:
+  external:
+    enabled: true
+    host: postgres.example.com
+    port: 5432
+    database: akkoma
+    username: akkoma
+    passwordSecret: pg-password
+    passwordKey: password

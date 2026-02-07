@@ -1,0 +1,12 @@
+# CI test: Metrics enabled
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: prometheus

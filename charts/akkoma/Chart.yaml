@@ -2,7 +2,7 @@ apiVersion: v2
 name: akkoma
 description: A Helm chart for deploying Akkoma, a federated social networking server (ActivityPub/Fediverse)
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "v3.17.0"
 keywords:
   - akkoma
@@ -19,3 +19,7 @@ sources:
 maintainers:
   - name: adamancini
     url: https://github.com/adamancini
+dependencies:
+  - name: garage
+    version: "0.1.0"
+    condition: garage.enabled

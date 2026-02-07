@@ -27,14 +27,14 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
-          version: v3.14.0
+          version: v3.16.0
 
       - name: Package Helm Chart
         run: |
           helm package charts/akkoma --destination .deploy
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: .deploy/*.tgz
           generate_release_notes: true

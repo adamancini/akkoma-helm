@@ -1,0 +1,202 @@
+{{- if .Values.garage.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "akkoma.fullname" . }}-garage-setup
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "akkoma.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: garage-setup
+    spec:
+      serviceAccountName: {{ include "akkoma.fullname" . }}-garage-setup
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: garage-setup
+        image: alpine:3.19
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          apk add --no-cache curl jq > /dev/null 2>&1
+
+          GARAGE_ADMIN="http://{{ .Release.Name }}-garage:3903"
+          ADMIN_TOKEN=$(cat /etc/garage/admin-token)
+          BUCKET_NAME="akkoma-uploads"
+          SECRET_NAME="{{ include "akkoma.fullname" . }}-s3"
+          KUBE_API="https://kubernetes.default.svc"
+          SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+          echo "Waiting for Garage admin API..."
+          until curl -sf "${GARAGE_ADMIN}/health" > /dev/null 2>&1; do
+            echo "Garage not ready, waiting..."
+            sleep 3
+          done
+          echo "Garage is ready!"
+
+          # Get cluster status and assign layout if needed
+          echo "Checking cluster layout..."
+          STATUS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/status")
+          NODE_ID=$(echo "${STATUS}" | jq -r '.node')
+
+          ROLES=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.roles | length')
+
+          if [ "${ROLES}" -eq 0 ]; then
+            echo "Assigning cluster layout..."
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": 1, \"tags\": [\"akkoma\"]}]" \
+              "${GARAGE_ADMIN}/v1/layout"
+
+            echo "Applying layout..."
+            CURRENT_VERSION=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.version')
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"version\": $((CURRENT_VERSION + 1))}" \
+              "${GARAGE_ADMIN}/v1/layout/apply"
+            echo "Layout applied!"
+          else
+            echo "Layout already configured (${ROLES} role(s))"
+          fi
+
+          # Check if key already exists
+          echo "Checking for existing S3 credentials..."
+          EXISTING_KEYS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/key" | jq -r '.[].name')
+          if echo "${EXISTING_KEYS}" | grep -q "^akkoma$"; then
+            echo "Key 'akkoma' already exists"
+            KEY_INFO=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/key?search=akkoma")
+            ACCESS_KEY=$(echo "${KEY_INFO}" | jq -r '.accessKeyId')
+            SECRET_KEY=$(echo "${KEY_INFO}" | jq -r '.secretAccessKey')
+          else
+            echo "Creating access key..."
+            KEY_INFO=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"name": "akkoma"}' \
+              "${GARAGE_ADMIN}/v1/key")
+            ACCESS_KEY=$(echo "${KEY_INFO}" | jq -r '.accessKeyId')
+            SECRET_KEY=$(echo "${KEY_INFO}" | jq -r '.secretAccessKey')
+            echo "Key created: ${ACCESS_KEY}"
+          fi
+
+          # Create bucket if it doesn't exist
+          echo "Checking bucket..."
+          BUCKETS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/bucket" | jq -r '.[].globalAliases[]?' 2>/dev/null || echo "")
+          if echo "${BUCKETS}" | grep -q "^${BUCKET_NAME}$"; then
+            echo "Bucket '${BUCKET_NAME}' already exists"
+          else
+            echo "Creating bucket '${BUCKET_NAME}'..."
+            BUCKET_RESULT=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"globalAlias\": \"${BUCKET_NAME}\"}" \
+              "${GARAGE_ADMIN}/v1/bucket")
+            BUCKET_ID=$(echo "${BUCKET_RESULT}" | jq -r '.id')
+
+            echo "Granting permissions..."
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${ACCESS_KEY}\", \"permissions\": {\"read\": true, \"write\": true, \"owner\": true}}" \
+              "${GARAGE_ADMIN}/v1/bucket/allow"
+            echo "Bucket created and permissions granted!"
+          fi
+
+          # Create or update the S3 credentials Secret via Kubernetes API
+          echo "Storing S3 credentials in Secret '${SECRET_NAME}'..."
+          ACCESS_KEY_B64=$(echo -n "${ACCESS_KEY}" | base64)
+          SECRET_KEY_B64=$(echo -n "${SECRET_KEY}" | base64)
+
+          SECRET_JSON=$(cat <<HEREDOC
+          {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+              "name": "${SECRET_NAME}",
+              "namespace": "${NAMESPACE}",
+              "labels": {
+                "app.kubernetes.io/managed-by": "garage-setup"
+              }
+            },
+            "type": "Opaque",
+            "data": {
+              "access-key-id": "${ACCESS_KEY_B64}",
+              "secret-access-key": "${SECRET_KEY_B64}"
+            }
+          }
+          HEREDOC
+          )
+
+          # Try to get existing secret
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --cacert "${CA_CERT}" \
+            -H "Authorization: Bearer ${SA_TOKEN}" \
+            "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets/${SECRET_NAME}")
+
+          if [ "${HTTP_CODE}" = "200" ]; then
+            echo "Updating existing Secret..."
+            curl -sf --cacert "${CA_CERT}" \
+              -X PUT \
+              -H "Authorization: Bearer ${SA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "${SECRET_JSON}" \
+              "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets/${SECRET_NAME}" > /dev/null
+          else
+            echo "Creating Secret..."
+            curl -sf --cacert "${CA_CERT}" \
+              -X POST \
+              -H "Authorization: Bearer ${SA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "${SECRET_JSON}" \
+              "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets" > /dev/null
+          fi
+
+          echo "Garage setup complete!"
+          echo "S3 endpoint: {{ .Release.Name }}-garage:3900"
+          echo "Bucket: ${BUCKET_NAME}"
+          echo "Credentials stored in Secret: ${SECRET_NAME}"
+        volumeMounts:
+        - name: secrets
+          mountPath: /etc/garage/admin-token
+          subPath: admin-token
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: secrets
+        secret:
+          secretName: {{ .Release.Name }}-garage
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
+{{- end }}

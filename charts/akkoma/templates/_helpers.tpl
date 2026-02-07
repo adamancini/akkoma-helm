@@ -82,3 +82,14 @@ Akkoma secret name helper (for external secrets support)
 {{ include "akkoma.fullname" . }}-secrets
 {{- end -}}
 {{- end -}}
+
+{{/*
+S3 secret name helper
+*/}}
+{{- define "akkoma.s3SecretName" -}}
+{{- if .Values.storage.s3.existingSecret -}}
+{{ .Values.storage.s3.existingSecret }}
+{{- else -}}
+{{ include "akkoma.fullname" . }}-s3
+{{- end -}}
+{{- end -}}

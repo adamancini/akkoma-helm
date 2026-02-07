@@ -32,6 +32,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -57,19 +60,20 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64  # Add linux/arm64 in v0.2.0
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            AKKOMA_VERSION=v3.13.2
+            AKKOMA_VERSION=stable
 
       - name: Run Trivy vulnerability scanner
+        if: github.event_name != 'pull_request'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
@@ -78,12 +82,12 @@ jobs:
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         with:
           sarif_file: 'trivy-image-results.sarif'
 
       - name: Run Grype vulnerability scanner
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v4
         if: github.event_name != 'pull_request'
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}

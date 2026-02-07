@@ -1,0 +1,4 @@
+# CI test: Minimal required values (default configuration)
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
