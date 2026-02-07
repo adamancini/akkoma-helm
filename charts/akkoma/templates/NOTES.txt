@@ -34,6 +34,37 @@ NOTE: Application secrets were auto-generated on first install.
       (Sealed Secrets, External Secrets Operator, Vault).
 {{- end }}
 
+{{- if .Values.postgresql.cnpg.enabled }}
+
+CloudNativePG:
+  The CNPG operator must be installed in the cluster.
+  Cluster name: {{ include "akkoma.fullname" . }}-cnpg
+  Service endpoint: {{ include "akkoma.fullname" . }}-cnpg-rw:5432
+  Credentials secret: {{ include "akkoma.fullname" . }}-cnpg-app
+  Check cluster status:
+    kubectl get cluster {{ include "akkoma.fullname" . }}-cnpg
+{{- end }}
+
+{{- if .Values.mediaPruning.enabled }}
+
+Media Pruning:
+  CronJob name: {{ include "akkoma.fullname" . }}-media-prune
+  Schedule: {{ .Values.mediaPruning.schedule }}
+  View job history:
+    kubectl get jobs -l app.kubernetes.io/component=media-prune
+{{- end }}
+
+{{- if and .Values.metrics.enabled .Values.metrics.grafana.enabled }}
+
+Grafana Dashboard:
+  ConfigMap name: {{ include "akkoma.fullname" . }}-grafana-dashboard
+  The dashboard will be auto-discovered by Grafana if the sidecar is
+  configured to watch for ConfigMaps with the label:
+    {{- range $key, $val := .Values.metrics.grafana.labels }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end }}
+{{- end }}
+
 For more information:
 - Akkoma Documentation: https://docs.akkoma.dev/
 - Chart Repository: https://github.com/adamancini/akkoma-helm

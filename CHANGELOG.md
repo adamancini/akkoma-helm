@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-07
+
+### Added
+
+- Frontend version override: parameterized `frontends.pleromaFe.ref`, `frontends.adminFe.ref`, and custom build URL support via `frontends.*.url`
+- Grafana dashboard: opt-in ConfigMap (`metrics.grafana.enabled`) with upstream Akkoma dashboard and sidecar discovery labels
+- Media pruning CronJob: scheduled `pleroma_ctl database prune_objects` via `mediaPruning.enabled` with configurable schedule, keep-followed, keep-threads, keep-non-public, limit, prune-orphaned-activities, and vacuum options
+- CloudNativePG support: operator-managed PostgreSQL via CNPG Cluster CR (`postgresql.cnpg.enabled`) as an alternative to the bundled StatefulSet, with configurable instances, storage, PostgreSQL parameters, and backup settings
+
+### Changed
+
+- Bumped chart version from 0.2.3 to 0.3.0
+- Extended CI test matrix with dedicated values files for frontend override, Grafana dashboard, media pruning, and CNPG configurations
+
 ## [0.2.3] - 2026-02-07
 
 ### Changed
@@ -93,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `helm template --dry-run` shows different secret values than actual install (expected Helm lookup behavior)
 - Uninstall/reinstall requires deleting PostgreSQL PVC to avoid password mismatch
 
+[0.3.0]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.3.0
 [0.2.3]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.3
 [0.2.2]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.2
 [0.2.1]: https://github.com/adamancini/akkoma-helm/releases/tag/v0.2.1

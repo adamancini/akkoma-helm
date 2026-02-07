@@ -20,6 +20,12 @@ instance:
   uploadLimit: 16000000
   description: "A test Akkoma instance"
 
+frontends:
+  pleromaFe:
+    ref: "develop"
+  adminFe:
+    ref: "develop"
+
 networkPolicy:
   enabled: true
   ingressControllerLabels:
@@ -31,6 +37,18 @@ metrics:
     enabled: true
     labels:
       release: prometheus
+  grafana:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+
+mediaPruning:
+  enabled: true
+  schedule: "0 3 * * 0"
+  options:
+    keepFollowed: "posts"
+    keepThreads: true
+    keepNonPublic: true
 
 resources:
   requests:
