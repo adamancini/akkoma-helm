@@ -32,10 +32,16 @@ spec:
       port: 53
   # Allow PostgreSQL connection
   - to:
+    {{- if .Values.postgresql.cnpg.enabled }}
+    - podSelector:
+        matchLabels:
+          cnpg.io/cluster: {{ include "akkoma.fullname" . }}-cnpg
+    {{- else }}
     - podSelector:
         matchLabels:
           {{- include "akkoma.selectorLabels" . | nindent 10 }}
           app.kubernetes.io/component: database
+    {{- end }}
     ports:
     - protocol: TCP
       port: 5432

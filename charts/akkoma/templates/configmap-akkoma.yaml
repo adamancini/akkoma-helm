@@ -42,8 +42,8 @@ data:
 
     # Frontend configuration
     config :pleroma, :frontends,
-      primary: %{"name" => "pleroma-fe", "ref" => "stable"},
-      admin: %{"name" => "admin-fe", "ref" => "stable"}
+      primary: %{"name" => "pleroma-fe", "ref" => "{{ .Values.frontends.pleromaFe.ref }}"},
+      admin: %{"name" => "admin-fe", "ref" => "{{ .Values.frontends.adminFe.ref }}"}
 
     # Upload configuration
     {{- if .Values.garage.enabled }}

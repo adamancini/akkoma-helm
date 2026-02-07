@@ -68,9 +68,15 @@ This document outlines the design for a production-ready Helm chart to deploy Ak
 - **Backup/restore documentation**
 - **CI improvements** with multi-version K8s validation
 
+### Shipped in v0.3.0
+
+- **Frontend version override** (parameterized refs and custom build URLs)
+- **Grafana dashboard** (opt-in ConfigMap with sidecar discovery labels)
+- **Media pruning CronJob** (scheduled `pleroma_ctl database prune_objects`)
+- **CloudNativePG support** (operator-managed PostgreSQL via CNPG Cluster CR)
+
 ### Deferred to Future Releases
 
-- **v0.3.0**: Grafana dashboard, HA PostgreSQL, media pruning CronJob
 - **Future**: Horizontal scaling (if Akkoma adds support)
 
 ---
@@ -1600,17 +1606,17 @@ curl https://akkoma.example.com/.well-known/webfinger?resource=acct:admin@akkoma
 - [x] Automated testing in CI (helm lint, kubeconform, chart-testing, multi-version K8s)
 - [ ] Grafana dashboard (deferred to v0.3.0)
 
-### v0.3.0 (Next Release)
+### v0.3.0 (Shipped)
 
 **Focus:** Advanced deployment patterns and observability
 
-- [ ] Grafana dashboard (BEAM VM metrics, HTTP rates, federation activity)
-- [ ] High-availability PostgreSQL (CloudNativePG operator support)
+- [x] Grafana dashboard (BEAM VM metrics, HTTP rates, federation activity)
+- [x] High-availability PostgreSQL (CloudNativePG operator support)
 - [ ] Migration tooling (PVC to S3)
-- [ ] Media pruning CronJob
+- [x] Media pruning CronJob
 - [x] NetworkPolicy templates (shipped in v0.1.0)
 - [ ] PodDisruptionBudget (if HA supported)
-- [ ] Frontend version override (customize pleroma-fe/admin-fe versions)
+- [x] Frontend version override (customize pleroma-fe/admin-fe versions)
 
 ### Beyond v1.0
 

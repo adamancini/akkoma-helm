@@ -1,0 +1,6 @@
+postgresql:
+  cnpg:
+    enabled: true
+    instances: 1
+    storage:
+      size: 5Gi

@@ -56,7 +56,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -111,7 +111,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         {{- if or (eq .Values.storage.type "s3") .Values.garage.enabled }}
         # S3 storage credentials
         - name: S3_ACCESS_KEY_ID
@@ -144,28 +144,39 @@ spec:
         - -c
         - |
           set -e
-          if [ -d "/frontends/pleroma-fe/stable" ] && [ -d "/frontends/admin-fe/stable" ]; then
+          PLEROMA_FE_REF="{{ .Values.frontends.pleromaFe.ref }}"
+          ADMIN_FE_REF="{{ .Values.frontends.adminFe.ref }}"
+          if [ -d "/frontends/pleroma-fe/${PLEROMA_FE_REF}" ] && [ -d "/frontends/admin-fe/${ADMIN_FE_REF}" ]; then
             echo "Frontends already installed, skipping"
             exit 0
           fi
-          FRONTEND_BASE="https://akkoma-updates.s3-website.fr-par.scw.cloud/frontend/stable"
-          echo "Downloading pleroma-fe (akkoma-fe)..."
-          wget -q "${FRONTEND_BASE}/akkoma-fe.zip" -O /tmp/akkoma-fe.zip
+          {{- if .Values.frontends.pleromaFe.url }}
+          PLEROMA_FE_URL="{{ .Values.frontends.pleromaFe.url }}"
+          {{- else }}
+          PLEROMA_FE_URL="https://akkoma-updates.s3-website.fr-par.scw.cloud/frontend/${PLEROMA_FE_REF}/akkoma-fe.zip"
+          {{- end }}
+          {{- if .Values.frontends.adminFe.url }}
+          ADMIN_FE_URL="{{ .Values.frontends.adminFe.url }}"
+          {{- else }}
+          ADMIN_FE_URL="https://akkoma-updates.s3-website.fr-par.scw.cloud/frontend/${ADMIN_FE_REF}/admin-fe.zip"
+          {{- end }}
+          echo "Downloading pleroma-fe (akkoma-fe) ref=${PLEROMA_FE_REF}..."
+          wget -q "${PLEROMA_FE_URL}" -O /tmp/akkoma-fe.zip
           mkdir -p /tmp/akkoma-fe
           unzip -q -o /tmp/akkoma-fe.zip -d /tmp/akkoma-fe
-          mkdir -p /frontends/pleroma-fe/stable
-          mv /tmp/akkoma-fe/dist/* /frontends/pleroma-fe/stable/ 2>/dev/null || mv /tmp/akkoma-fe/* /frontends/pleroma-fe/stable/
+          mkdir -p "/frontends/pleroma-fe/${PLEROMA_FE_REF}"
+          mv /tmp/akkoma-fe/dist/* "/frontends/pleroma-fe/${PLEROMA_FE_REF}/" 2>/dev/null || mv /tmp/akkoma-fe/* "/frontends/pleroma-fe/${PLEROMA_FE_REF}/"
           rm -rf /tmp/akkoma-fe /tmp/akkoma-fe.zip
-          echo "Downloading admin-fe..."
-          wget -q "${FRONTEND_BASE}/admin-fe.zip" -O /tmp/admin-fe.zip
+          echo "Downloading admin-fe ref=${ADMIN_FE_REF}..."
+          wget -q "${ADMIN_FE_URL}" -O /tmp/admin-fe.zip
           mkdir -p /tmp/admin-fe
           unzip -q -o /tmp/admin-fe.zip -d /tmp/admin-fe
-          mkdir -p /frontends/admin-fe/stable
-          mv /tmp/admin-fe/dist/* /frontends/admin-fe/stable/ 2>/dev/null || mv /tmp/admin-fe/* /frontends/admin-fe/stable/
+          mkdir -p "/frontends/admin-fe/${ADMIN_FE_REF}"
+          mv /tmp/admin-fe/dist/* "/frontends/admin-fe/${ADMIN_FE_REF}/" 2>/dev/null || mv /tmp/admin-fe/* "/frontends/admin-fe/${ADMIN_FE_REF}/"
           rm -rf /tmp/admin-fe /tmp/admin-fe.zip
           echo "Frontends installed!"
-          ls /frontends/pleroma-fe/stable/ | head -5
-          ls /frontends/admin-fe/stable/ | head -5
+          ls "/frontends/pleroma-fe/${PLEROMA_FE_REF}/" | head -5
+          ls "/frontends/admin-fe/${ADMIN_FE_REF}/" | head -5
         volumeMounts:
         - name: frontends
           mountPath: /frontends
@@ -251,7 +262,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         {{- if or (eq .Values.storage.type "s3") .Values.garage.enabled }}
         # S3 storage credentials
         - name: S3_ACCESS_KEY_ID

@@ -1,0 +1,12 @@
+mediaPruning:
+  enabled: true
+  schedule: "0 4 * * 1"
+  options:
+    keepFollowed: "full"
+    keepThreads: true
+    keepNonPublic: false
+    limit: 5000
+    pruneOrphanedActivities: true
+    vacuum: true
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3

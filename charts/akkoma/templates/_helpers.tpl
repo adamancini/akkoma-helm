@@ -52,10 +52,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 PostgreSQL host helper
+Priority: external > cnpg > bundled
 */}}
 {{- define "akkoma.postgresql.host" -}}
 {{- if .Values.postgresql.external.enabled -}}
 {{ .Values.postgresql.external.host }}
+{{- else if .Values.postgresql.cnpg.enabled -}}
+{{ include "akkoma.fullname" . }}-cnpg-rw
 {{- else -}}
 {{ include "akkoma.fullname" . }}-postgresql
 {{- end -}}
@@ -63,12 +66,29 @@ PostgreSQL host helper
 
 {{/*
 PostgreSQL secret name helper
+Priority: external > cnpg > bundled
 */}}
 {{- define "akkoma.postgresql.secretName" -}}
 {{- if .Values.postgresql.external.enabled -}}
 {{ .Values.postgresql.external.passwordSecret }}
+{{- else if .Values.postgresql.cnpg.enabled -}}
+{{ include "akkoma.fullname" . }}-cnpg-app
 {{- else -}}
 {{ include "akkoma.fullname" . }}-postgresql
+{{- end -}}
+{{- end -}}
+
+{{/*
+PostgreSQL password key helper
+Priority: external > cnpg > bundled
+*/}}
+{{- define "akkoma.postgresql.passwordKey" -}}
+{{- if .Values.postgresql.external.enabled -}}
+{{ .Values.postgresql.external.passwordKey | default "password" }}
+{{- else if .Values.postgresql.cnpg.enabled -}}
+password
+{{- else -}}
+postgres-password
 {{- end -}}
 {{- end -}}
 

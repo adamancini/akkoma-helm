@@ -1,0 +1,140 @@
+{{- if .Values.mediaPruning.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "akkoma.fullname" . }}-media-prune
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: media-prune
+spec:
+  schedule: {{ .Values.mediaPruning.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.mediaPruning.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.mediaPruning.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "akkoma.labels" . | nindent 8 }}
+        app.kubernetes.io/component: media-prune
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "akkoma.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: media-prune
+        spec:
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+          containers:
+          - name: media-prune
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            command:
+            - sh
+            - -c
+            - |
+              echo "Starting media pruning..."
+              PRUNE_ARGS=""
+              {{- if and .Values.mediaPruning.options.keepFollowed (ne .Values.mediaPruning.options.keepFollowed "none") }}
+              PRUNE_ARGS="${PRUNE_ARGS} --keep-followed {{ .Values.mediaPruning.options.keepFollowed }}"
+              {{- end }}
+              {{- if .Values.mediaPruning.options.keepThreads }}
+              PRUNE_ARGS="${PRUNE_ARGS} --keep-threads"
+              {{- end }}
+              {{- if .Values.mediaPruning.options.keepNonPublic }}
+              PRUNE_ARGS="${PRUNE_ARGS} --keep-non-public"
+              {{- end }}
+              {{- if gt (int .Values.mediaPruning.options.limit) 0 }}
+              PRUNE_ARGS="${PRUNE_ARGS} --limit {{ .Values.mediaPruning.options.limit }}"
+              {{- end }}
+              {{- if .Values.mediaPruning.options.pruneOrphanedActivities }}
+              PRUNE_ARGS="${PRUNE_ARGS} --prune-orphaned-activities"
+              {{- end }}
+              {{- if .Values.mediaPruning.options.vacuum }}
+              PRUNE_ARGS="${PRUNE_ARGS} --vacuum"
+              {{- end }}
+              echo "Running: pleroma_ctl database prune_objects${PRUNE_ARGS}"
+              /opt/akkoma/bin/pleroma_ctl database prune_objects${PRUNE_ARGS}
+              echo "Media pruning complete!"
+            env:
+            # Configuration file path
+            - name: PLEROMA_CONFIG_PATH
+              value: /etc/akkoma/prod.secret.exs
+            # BEAM VM writable paths for read-only root filesystem
+            - name: RELEASE_TMP
+              value: /tmp/akkoma-release
+            - name: ERL_CRASH_DUMP
+              value: /tmp/erl_crash.dump
+            # Application secrets (from generated or external secret)
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.secretName" . }}
+                  key: {{ .Values.externalSecret.keys.releaseCookie | default "release-cookie" }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.secretName" . }}
+                  key: {{ .Values.externalSecret.keys.secretKeyBase | default "secret-key-base" }}
+            - name: SIGNING_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.secretName" . }}
+                  key: {{ .Values.externalSecret.keys.signingSalt | default "signing-salt" }}
+            # Database connection details
+            - name: DB_HOST
+              value: {{ include "akkoma.postgresql.host" . }}
+            - name: DB_NAME
+              value: {{ .Values.postgresql.database }}
+            - name: DB_USER
+              value: {{ .Values.postgresql.username }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.postgresql.secretName" . }}
+                  key: {{ include "akkoma.postgresql.passwordKey" . }}
+            {{- if or (eq .Values.storage.type "s3") .Values.garage.enabled }}
+            # S3 storage credentials
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.s3SecretName" . }}
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "akkoma.s3SecretName" . }}
+                  key: secret-access-key
+            {{- end }}
+            volumeMounts:
+            - name: config
+              mountPath: /etc/akkoma
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.securityContext }}
+            securityContext:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          volumes:
+          - name: config
+            configMap:
+              name: {{ include "akkoma.fullname" . }}-config
+              defaultMode: 0640
+          # tmpfs for BEAM VM writable /tmp
+          - name: tmp
+            emptyDir:
+              medium: Memory
+              sizeLimit: 64Mi
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
