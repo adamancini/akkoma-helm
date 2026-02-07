@@ -1,4 +1,4 @@
-{{- if not .Values.postgresql.external.enabled }}
+{{- if and (not .Values.postgresql.external.enabled) (not .Values.postgresql.cnpg.enabled) }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

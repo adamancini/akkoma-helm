@@ -87,6 +87,24 @@ postgresql:
     passwordSecret: ""
     passwordKey: "password"
 
+  # CloudNativePG operator-managed PostgreSQL
+  # Requires the CloudNativePG operator to be installed in the cluster
+  # When enabled, disables the bundled PostgreSQL StatefulSet
+  cnpg:
+    enabled: false
+    instances: 1
+    storage:
+      size: 10Gi
+      storageClass: ""
+    imageName: "ghcr.io/cloudnative-pg/postgresql:16"
+    parameters: {}
+    backup:
+      enabled: false
+      barmanObjectStore: {}
+      volumeSnapshot:
+        enabled: false
+        className: ""
+
 # Storage configuration
 storage:
   # Upload storage backend: "local" (PVC) or "s3" (S3-compatible)

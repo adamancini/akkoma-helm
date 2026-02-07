@@ -1,4 +1,4 @@
-{{- if and .Values.networkPolicy.enabled (not .Values.postgresql.external.enabled) }}
+{{- if and .Values.networkPolicy.enabled (not .Values.postgresql.external.enabled) (not .Values.postgresql.cnpg.enabled) }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

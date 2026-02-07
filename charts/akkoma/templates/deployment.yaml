@@ -56,7 +56,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -111,7 +111,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         {{- if or (eq .Values.storage.type "s3") .Values.garage.enabled }}
         # S3 storage credentials
         - name: S3_ACCESS_KEY_ID
@@ -262,7 +262,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ include "akkoma.postgresql.secretName" . }}
-              key: {{ if .Values.postgresql.external.enabled }}{{ .Values.postgresql.external.passwordKey | default "password" }}{{ else }}postgres-password{{ end }}
+              key: {{ include "akkoma.postgresql.passwordKey" . }}
         {{- if or (eq .Values.storage.type "s3") .Values.garage.enabled }}
         # S3 storage credentials
         - name: S3_ACCESS_KEY_ID

@@ -1,0 +1,44 @@
+{{- if .Values.postgresql.cnpg.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "akkoma.fullname" . }}-cnpg
+  labels:
+    {{- include "akkoma.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgresql.cnpg.instances }}
+  imageName: {{ .Values.postgresql.cnpg.imageName }}
+
+  storage:
+    size: {{ .Values.postgresql.cnpg.storage.size }}
+    {{- if .Values.postgresql.cnpg.storage.storageClass }}
+    storageClassName: {{ .Values.postgresql.cnpg.storage.storageClass }}
+    {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database }}
+      owner: {{ .Values.postgresql.username }}
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS citext
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm
+        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
+
+  {{- if .Values.postgresql.cnpg.parameters }}
+  postgresql:
+    parameters:
+      {{- toYaml .Values.postgresql.cnpg.parameters | nindent 6 }}
+  {{- end }}
+
+  {{- if .Values.postgresql.cnpg.backup.enabled }}
+  backup:
+    {{- if .Values.postgresql.cnpg.backup.barmanObjectStore }}
+    barmanObjectStore:
+      {{- toYaml .Values.postgresql.cnpg.backup.barmanObjectStore | nindent 6 }}
+    {{- end }}
+    {{- if .Values.postgresql.cnpg.backup.volumeSnapshot.enabled }}
+    volumeSnapshot:
+      className: {{ .Values.postgresql.cnpg.backup.volumeSnapshot.className }}
+    {{- end }}
+  {{- end }}
+{{- end }}
