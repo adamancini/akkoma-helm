@@ -501,6 +501,10 @@ Secrets are automatically preserved across upgrades using Helm's `lookup` functi
 
 **Warning:** If you delete the `akkoma-secrets` Secret between upgrades, new secrets will be generated and all user sessions will be invalidated.
 
+### Upgrading to v0.3.1
+
+v0.3.1 fixes a critical bug where Helm rendered `upload_limit` (16000000) as scientific notation (`1.6e+07`), which Elixir parsed as a float. This crashed the Plug multipart parser on login (`POST /oauth/token`) and file uploads. All users on v0.3.0 or earlier should upgrade.
+
 ### Upgrading from v0.2.x to v0.3.0
 
 v0.3.0 adds four new opt-in features. All are disabled by default and require no action for existing deployments:

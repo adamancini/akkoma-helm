@@ -1,9 +1,9 @@
 # Akkoma Helm Chart - Design Document
 
-**Date:** 2026-02-04
-**Status:** Draft - Refined after technical review
+**Date:** 2026-02-07
+**Status:** Living document - Updated through v0.3.1
 **Author:** Design Session
-**Version:** 0.1.0
+**Version:** 0.3.1
 
 ## Table of Contents
 
@@ -68,12 +68,13 @@ This document outlines the design for a production-ready Helm chart to deploy Ak
 - **Backup/restore documentation**
 - **CI improvements** with multi-version K8s validation
 
-### Shipped in v0.3.0
+### Shipped in v0.3.0/v0.3.1
 
 - **Frontend version override** (parameterized refs and custom build URLs)
 - **Grafana dashboard** (opt-in ConfigMap with sidecar discovery labels)
 - **Media pruning CronJob** (scheduled `pleroma_ctl database prune_objects`)
 - **CloudNativePG support** (operator-managed PostgreSQL via CNPG Cluster CR)
+- **Bugfix: upload_limit integer rendering** (v0.3.1 — Helm scientific notation crash)
 
 ### Deferred to Future Releases
 
@@ -963,7 +964,7 @@ data:
       notify_email: "{{ .Values.akkoma.adminEmail }}",
       limit: {{ .Values.instance.characterLimit }},
       registrations_open: {{ .Values.instance.registrationsOpen }},
-      upload_limit: {{ .Values.instance.uploadLimit }}
+      upload_limit: {{ int .Values.instance.uploadLimit }}
 
     # Database configuration
     config :pleroma, Pleroma.Repo,
@@ -991,7 +992,7 @@ data:
       enabled: true,
       proxy_opts: [
         redirect_on_failure: true,
-        max_body_length: {{ .Values.instance.uploadLimit }}
+        max_body_length: {{ int .Values.instance.uploadLimit }}
       ]
 
     # Logging configuration
