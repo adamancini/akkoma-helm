@@ -1,0 +1,11 @@
+# CI test: CNPG + media pruning combination
+# Verifies CronJob uses correct CNPG secret key and service references
+postgresql:
+  cnpg:
+    enabled: true
+    instances: 1
+    storage:
+      size: 5Gi
+
+mediaPruning:
+  enabled: true
