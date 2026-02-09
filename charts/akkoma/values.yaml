@@ -214,6 +214,31 @@ networkPolicy:
   ingressControllerLabels:
     kubernetes.io/metadata.name: ingress-nginx
 
+# Hardening options
+# Implements recommendations from https://docs.akkoma.dev/stable/configuration/hardening/
+# Note: Systemd-level hardening (PrivateTmp, ProtectHome, NoNewPrivileges, etc.)
+# is already handled by the pod/container securityContext above.
+# Note: HTTP binding to localhost (ip: {127,0,0,1}) is not applicable in Kubernetes;
+# pods must listen on 0.0.0.0 for Service routing. Use networkPolicy for equivalent isolation.
+hardening:
+  # Secure cookie flag - sets __Host- prefix, enforces HTTPS-only cookies
+  secureCookieFlag: true
+
+  # Separate domain for serving user uploads (content isolation)
+  # When set, uploads are served from this URL instead of https://<domain>/media/
+  # Recommended to prevent privilege boundary exploits from malicious uploads
+  # Example: "https://media.myinstance.net"
+  mediaBaseUrl: ""
+
+  # HTTP security headers
+  httpSecurity:
+    # Enable security headers (XSS protection, frame denial, CSP, MIME sniffing prevention)
+    enabled: true
+    # Strict-Transport-Security header (HTTPS-only access)
+    sts: true
+    # Referrer-Policy header: "same-origin" or "no-referrer"
+    referrerPolicy: "same-origin"
+
 # Resource limits - NO CPU LIMITS (allow BEAM bursting)
 resources:
   requests:
