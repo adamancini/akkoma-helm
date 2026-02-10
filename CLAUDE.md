@@ -302,7 +302,24 @@ kubectl rollout restart deployment/akkoma
 
 ## Chart Maintenance
 
-### Version Tagging
+### Release Tagging Convention
+
+Releases require **two tags** that must always be created together, pointing at the same commit:
+
+- `v<semver>` — triggers the container image build (`ghcr.io/adamancini/akkoma`)
+- `chart-v<semver>` — triggers the Helm chart release (`oci://ghcr.io/adamancini/charts/akkoma`) and GitHub Release
+
+The version in `charts/akkoma/Chart.yaml` must match the tag version.
+
+```bash
+# Example release workflow
+# 1. Bump version in Chart.yaml
+# 2. Commit and push
+# 3. Create and push both tags together
+git tag v0.5.0 && git tag chart-v0.5.0 && git push origin v0.5.0 chart-v0.5.0
+```
+
+### Version Scheme
 
 - Chart version follows SemVer
 - appVersion tracks Akkoma release version
