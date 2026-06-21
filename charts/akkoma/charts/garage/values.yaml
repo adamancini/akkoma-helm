@@ -23,5 +23,13 @@ resources:
   limits:
     memory: 512Mi
 
-# Admin API token (auto-generated if empty)
+# Garage secrets (admin API token and RPC secret).
+# Precedence per value: explicit value below > existing in-cluster value > random.
+# For GitOps/ArgoCD set these explicitly (manage with SOPS/Sealed Secrets) or
+# reference an existing Secret; otherwise the random fallback is regenerated on
+# every `helm template` render.
 adminToken: ""
+rpcSecret: ""
+# Reference an existing Secret instead of generating one. When set, the chart
+# renders no garage Secret. The Secret must contain keys: admin-token, rpc-secret.
+existingSecret: ""

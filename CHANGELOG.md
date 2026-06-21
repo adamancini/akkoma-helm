@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-06-21
+
+### Added
+
+- GitOps-safe secret management. Every generated secret now resolves with the precedence **explicit value > existing in-cluster value > random**, so values stay stable under `helm template`/ArgoCD where Helm's `lookup` is unavailable:
+  - `postgresql.password` / `postgresql.existingSecret` / `postgresql.existingSecretPasswordKey` for the bundled PostgreSQL StatefulSet
+  - `secrets.secretKeyBase` / `secrets.signingSalt` / `secrets.releaseCookie` for the Akkoma application secrets
+  - `garage.adminToken` / `garage.rpcSecret` / `garage.existingSecret` for the Garage subchart
+
+### Fixed
+
+- Bundled PostgreSQL StatefulSet now references the password Secret via the `akkoma.postgresql.secretName`/`passwordKey` helpers, so `postgresql.existingSecret` and a custom password key wire through to Postgres itself.
+- Random secrets are no longer regenerated on every render under GitOps tooling when an explicit value or existing Secret is provided.
+
 ## [0.4.3] - 2026-06-21
 
 ### Changed

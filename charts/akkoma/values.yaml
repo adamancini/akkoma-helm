@@ -53,6 +53,19 @@ externalSecret:
     signingSalt: "signing-salt"
     releaseCookie: "release-cookie"
 
+# Akkoma application secrets (when externalSecret.enabled is false).
+# Precedence per value: explicit value below > existing in-cluster value > random.
+#
+# IMPORTANT for GitOps (ArgoCD/Flux) and any `helm template` workflow:
+# Helm's `lookup` only reads the cluster during `helm install`/`helm upgrade`.
+# Under `helm template` it returns nothing, so the chart would regenerate random
+# values on every render and invalidate user sessions. To get stable values, set
+# these explicitly (manage them with SOPS/Sealed Secrets) or use externalSecret.
+secrets:
+  secretKeyBase: ""   # 64-char string for Phoenix sessions
+  signingSalt: ""     # 8-char salt for signed tokens
+  releaseCookie: ""   # 64-char string for Erlang distribution
+
 # Secret generation behavior (when externalSecret.enabled is false):
 # - On first install: Chart generates random secrets automatically
 # - On upgrades: Existing secrets are preserved using Helm lookup function
@@ -68,6 +81,17 @@ postgresql:
   # Database connection details
   database: "akkoma"
   username: "akkoma"
+
+  # Bundled PostgreSQL password (used when external and cnpg are both disabled).
+  # Precedence: password > existing in-cluster value > random.
+  # Set password (or existingSecret) for GitOps/ArgoCD; otherwise the random
+  # fallback is regenerated on every `helm template` render. Manage with
+  # SOPS/Sealed Secrets when set inline.
+  password: ""
+  # Reference an existing Secret for the bundled PostgreSQL password instead of
+  # generating one. When set, the chart renders no PostgreSQL Secret.
+  existingSecret: ""
+  existingSecretPasswordKey: "postgres-password"
 
   # Resource limits for PostgreSQL
   resources:

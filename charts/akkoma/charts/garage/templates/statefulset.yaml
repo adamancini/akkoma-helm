@@ -80,7 +80,7 @@ spec:
           name: {{ include "garage.fullname" . }}
       - name: secrets
         secret:
-          secretName: {{ include "garage.fullname" . }}
+          secretName: {{ include "garage.secretName" . }}
   volumeClaimTemplates:
   - metadata:
       name: meta
