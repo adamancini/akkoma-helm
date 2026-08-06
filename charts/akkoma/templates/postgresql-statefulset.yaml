@@ -19,17 +19,19 @@ spec:
         {{- include "akkoma.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: database
     spec:
+      {{- with .Values.postgresql.podSecurityContext }}
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 999  # postgres user in official image
-        runAsGroup: 999
-        fsGroup: 999
-        seccompProfile:
-          type: RuntimeDefault
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: postgresql
         image: postgres:15-alpine
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         ports:
         - name: postgresql
           containerPort: 5432
@@ -56,6 +58,10 @@ spec:
         - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: run-postgresql
+          mountPath: /var/run/postgresql
         livenessProbe:
           exec:
             command:
@@ -80,6 +86,15 @@ spec:
       - name: init-scripts
         configMap:
           name: {{ include "akkoma.fullname" . }}-postgresql-init
+      # Writable paths for read-only root filesystem
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: run-postgresql
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Mi
   volumeClaimTemplates:
   - metadata:
       name: data

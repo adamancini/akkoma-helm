@@ -76,10 +76,11 @@ RUN apk add --no-cache \
     ca-certificates \
     openssl
 
-# Create akkoma user and group (UID/GID 1000)
+# Create akkoma user and group (UID/GID 10001, outside the 0-10000 range
+# some hardening scanners flag as reserved/host-collision-prone)
 # Running as non-root user for security
-RUN addgroup -g 1000 akkoma && \
-    adduser -D -u 1000 -G akkoma akkoma
+RUN addgroup -g 10001 akkoma && \
+    adduser -D -u 10001 -G akkoma akkoma
 
 # Copy OTP release from downloader stage
 COPY --from=downloader --chown=akkoma:akkoma \

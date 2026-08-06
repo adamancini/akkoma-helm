@@ -1,0 +1,7 @@
+# Overrides KSV-0125's default trusted-registry list (which only includes
+# Azure/ECR/GCR by default) to also trust ghcr.io, since this chart's own
+# image (ghcr.io/adamancini/akkoma) is the thing being flagged.
+# See: https://trivy.dev/latest/docs/scanner/misconfiguration/custom/data/
+ksv0125:
+  trusted_registries:
+    - ghcr.io

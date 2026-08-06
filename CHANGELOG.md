@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-08-06
+
+### Fixed
+
+- Resolved all 35 open Trivy/CodeQL security-scanning alerts (`charts/security/code-scanning`):
+  - `postgresql-statefulset.yaml`'s container had no container-level `securityContext` at all. Added `allowPrivilegeEscalation: false`, `capabilities: {drop: [ALL]}`, and `readOnlyRootFilesystem: true` (with new `tmp`/`run-postgresql` emptyDir mounts for the paths Postgres needs writable), matching the pattern already used elsewhere in the chart. Verified locally against the real `postgres:15-alpine` image before committing.
+  - Added resource requests/limits to the three `deployment.yaml` init containers (`wait-for-db`, `db-migrate`, `install-frontends`), which previously had none, via new `initContainerResources.*` values. `db-migrate` is sized close to the main container's own footprint (1Gi/2Gi memory), not a lightweight-script allocation — it boots the identical BEAM/OTP release just to run `pleroma_ctl migrate`, so under-sizing it risks OOMKill on release boot alone. Added a CPU limit to `postgresql.resources` (unlike the main `akkoma` container, there's no BEAM-scheduler reason to omit one for Postgres).
+  - Suppressed genuine false positives via `.trivyignore`, each with a documented reason: `configmap-akkoma.yaml`'s "ConfigMap with secrets"/"sensitive content" findings (a mix of `System.get_env(...)` references — env var names, not values — and non-sensitive fields like the admin contact email and the `prod.secret.exs` filename matching on the word "secret"; none of it is real secret material), and "workloads in the default namespace" (a scan-harness artifact — CI's chart rendering doesn't set a namespace; real deployments never target `default`).
+  - Added `trivy.yaml`/`trivy-data/ksv0125.yaml` declaring `ghcr.io` a trusted registry for the "restrict container images to trusted registries" check. Verified against Trivy's own Rego source that bare Docker Hub images (`postgres:15-alpine`, `alpine:3.23`) were never actually the trigger — the check exempts registry-unqualified image references entirely; the real hit was this chart's own `ghcr.io/adamancini/akkoma` image, since Trivy's default trusted list only covers Azure/ECR/GCR.
+  - Also suppressed (with justification) the sole remaining `CPU not limited` finding on the main `akkoma` container, which deliberately has no CPU limit (see `values.yaml`'s `resources` comment) for BEAM scheduler bursting.
+
+### Changed
+
+- **Renumbered the container UID/GID from 1000/999 to 10001** for both the Akkoma app (Dockerfile's `akkoma` user) and the bundled PostgreSQL StatefulSet, resolving the "runs with UID/GID <= 10000" findings. Verified locally that `postgres:15-alpine` initializes and runs cleanly under an overridden UID.
+  - **Upgrade note:** if you have an *existing* installation with PGDATA already on disk (owned by UID 999 under default 0700 permissions), a fresh UID 10001 won't be able to read those files. Override `postgresql.podSecurityContext` back to UID/GID 999, or migrate ownership of the PVC's data, before upgrading. New installations are unaffected.
+
 ## [0.4.8] - 2026-08-06
 
 ### Fixed

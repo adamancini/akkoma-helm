@@ -117,6 +117,8 @@ jobs:
           scan-ref: 'charts/'
           format: 'sarif'
           output: 'trivy-results.sarif'
+          trivy-config: 'trivy.yaml'
+          trivyignores: '.trivyignore'
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3

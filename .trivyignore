@@ -1,0 +1,38 @@
+# See docs.aquasec.com/trivy > misconfiguration > ignore for syntax.
+# Each entry below is a reviewed false positive / scan-harness artifact, not
+# an accepted real risk -- see the comment above each ID.
+
+# ConfigMap "secrets"/"sensitive content": neither finding is real secret
+# material. AVD-KSV-0109 fires on both the literal `password`/`secret_key_base`
+# System.get_env() *references* in configmap-akkoma.yaml (env var names, not
+# values -- the real secret material lives in Kubernetes Secrets, injected
+# via secretKeyRef in deployment.yaml) and independently on the ConfigMap
+# data key's filename, `prod.secret.exs`, which matches on the word "secret"
+# regardless of content. AVD-KSV-01010 fires on `email`/`notify_email`
+# (rendered from .Values.akkoma.adminEmail -- a public admin contact
+# address, not sensitive) and `username` (another System.get_env()
+# reference). None of these are values that belong in a Kubernetes Secret.
+AVD-KSV-0109
+AVD-KSV-01010
+
+# "Workloads in the default namespace": scan-harness artifact. CI's
+# `helm template`/Trivy's own chart rendering doesn't pass a namespace, so
+# rendered manifests default to "default". Real deployments (see
+# argo-fleet's apps/akkoma/env/*/release.yaml) always target
+# akkoma-{dev,staging,prod}, never the default namespace.
+AVD-KSV-0110
+
+# "CPU not limited": the akkoma container deliberately has no CPU limit --
+# see values.yaml's resources block comment. The BEAM VM scheduler needs to
+# see and use all available cores for efficient scheduling; a CPU limit
+# would throttle it in ways that hurt latency more than an OOM-protected
+# memory limit alone. Every other container in this chart (postgres, all
+# init containers) does have a real CPU limit; this is the sole deliberate
+# exception.
+#
+# CAVEAT: .trivyignore matches by rule ID only, not per-container -- if a
+# future container is ever added without a CPU limit for a non-deliberate
+# reason, this suppression will silently hide that finding too. Audit any
+# new container's resources block manually; don't rely on this scan to
+# catch it.
+AVD-KSV-0011

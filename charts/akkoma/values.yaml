@@ -99,7 +99,25 @@ postgresql:
       cpu: 250m
       memory: 512Mi
     limits:
+      cpu: "1"
       memory: 1Gi
+
+  # Security context for the bundled PostgreSQL StatefulSet.
+  # Defaults to UID/GID 10001 rather than the official image's built-in
+  # "postgres" user (999) -- outside the 0-10000 range some hardening
+  # scanners flag as reserved/host-collision-prone. postgres:15-alpine
+  # initializes PGDATA fresh under whatever UID/GID it's run as, so this is
+  # safe for new installs. If upgrading an EXISTING installation with data
+  # already on disk owned by UID 999, override this back to 999 (or migrate
+  # ownership of the PVC's data) before upgrading, since a fresh UID can't
+  # read files an old UID owns under default 0700 permissions.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
 
   # External PostgreSQL (disabled by default, uses bundled StatefulSet)
   external:
@@ -272,12 +290,48 @@ resources:
     # No CPU limit - allow bursting for BEAM scheduler efficiency
     memory: 2Gi    # OOM protection only
 
+# Resource limits for the deployment's init containers.
+# waitForDb and installFrontends are genuinely lightweight (a shell loop /
+# a wget+unzip); dbMigrate is NOT -- it boots the exact same BEAM/OTP
+# release as the main akkoma container just to run `pleroma_ctl migrate`,
+# so it needs comparable memory to the main container's own `resources`
+# above, not a "setup script" allocation, or a real migration run risks
+# OOMKill on release boot alone before it does any migration work.
+initContainerResources:
+  waitForDb:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 32Mi
+  dbMigrate:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      # Unlike the main container, a CPU limit is fine here -- this is a
+      # one-shot batch job (migrate then exit), not a live-traffic BEAM
+      # scheduler under latency pressure, so throttling doesn't hurt
+      # correctness the way it would for the main container.
+      cpu: "1"
+      memory: 2Gi
+  installFrontends:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
 # Security context (hardened from the start)
+# UID/GID 10001 matches the akkoma user created in the Dockerfile -- outside
+# the 0-10000 range some hardening scanners flag as reserved/host-collision-prone.
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
-  fsGroup: 1000
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
   seccompProfile:
     type: RuntimeDefault  # Baseline security
 

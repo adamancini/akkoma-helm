@@ -62,8 +62,10 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-          runAsNonRoot: true
-          runAsUser: 999  # postgres user
+        {{- with .Values.initContainerResources.waitForDb }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       # Run database migrations before starting Akkoma
       - name: db-migrate
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -124,6 +126,10 @@ spec:
             secretKeyRef:
               name: {{ include "akkoma.s3SecretName" . }}
               key: secret-access-key
+        {{- end }}
+        {{- with .Values.initContainerResources.dbMigrate }}
+        resources:
+          {{- toYaml . | nindent 10 }}
         {{- end }}
         volumeMounts:
         - name: config
@@ -187,6 +193,10 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
+        {{- with .Values.initContainerResources.installFrontends }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       containers:
       - name: akkoma
         {{- with .Values.securityContext }}
