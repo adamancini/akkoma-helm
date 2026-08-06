@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-08-06
+
+### Fixed
+
+- `image.tag` defaults to `Chart.AppVersion`, but no build ever pushed a tag matching that version — only tags matching the chart's own release version (e.g. `0.4.6`) were built. A one-off manual push had filled the gap for `v3.17.0` but was amd64-only, so `helm install` with default values failed to pull on arm64 (e.g. Apple Silicon).
+- `build-image.yml` now resolves the current `stable` version once per run and builds against that pinned version (rather than the floating `stable` alias) for both platforms, pushing an additional multi-arch tag matching it — so `image.tag`'s default always points at a real, multi-arch image, and the pushed tag can't drift from what the image actually contains.
+- Bumped `appVersion` to `v3.19.0` to match the version now resolved from `stable`.
+
 ## [0.4.6] - 2026-06-30
 
 ### Changed

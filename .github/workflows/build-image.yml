@@ -38,6 +38,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Resolve upstream Akkoma version
+        id: akkoma
+        if: github.event_name != 'pull_request'
+        run: |
+          curl -fsSL --retry 3 --retry-delay 5 \
+            "https://akkoma-updates.s3-website.fr-par.scw.cloud/stable/akkoma-amd64-musl.zip" \
+            -o /tmp/akkoma-stable.zip
+          version=$(unzip -l /tmp/akkoma-stable.zip \
+            | grep -oE 'release/releases/[0-9]+\.[0-9]+\.[0-9]+' \
+            | head -1 | cut -d/ -f3)
+          if [ -z "$version" ]; then
+            echo "ERROR: could not resolve Akkoma release version from stable archive" >&2
+            exit 1
+          fi
+          echo "version=v${version}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -58,6 +74,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.akkoma.outputs.version }},enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -70,7 +87,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            AKKOMA_VERSION=stable
+            AKKOMA_VERSION=${{ steps.akkoma.outputs.version || 'stable' }}
 
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request'
