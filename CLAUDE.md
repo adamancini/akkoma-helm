@@ -304,25 +304,24 @@ kubectl rollout restart deployment/akkoma
 
 ### Release Tagging Convention
 
-Releases require **two tags** that must always be created together, pointing at the same commit:
+The chart and the container image are released independently — they track different things and are no longer coupled by a shared git tag.
 
-- `v<semver>` — triggers the container image build (`ghcr.io/adamancini/akkoma`)
-- `chart-v<semver>` — triggers the Helm chart release (`oci://ghcr.io/adamancini/charts/akkoma`) and GitHub Release
-
-The version in `charts/akkoma/Chart.yaml` must match the tag version.
+**Chart release**: push a `chart-v<semver>` tag to trigger the Helm chart release (`oci://ghcr.io/adamancini/charts/akkoma`) and GitHub Release. The version in `charts/akkoma/Chart.yaml` must match the tag version.
 
 ```bash
-# Example release workflow
+# Example chart release workflow
 # 1. Bump version in Chart.yaml
 # 2. Commit and push
-# 3. Create and push both tags together
-git tag v0.5.0 && git tag chart-v0.5.0 && git push origin v0.5.0 chart-v0.5.0
+# 3. Tag and push
+git tag chart-v0.5.0 && git push origin chart-v0.5.0
 ```
+
+**Container image**: builds and pushes automatically whenever `Dockerfile`, `charts/akkoma/Chart.yaml`, or `build-image.yml` changes on `main` — no separate release tag needed. The image's only *version* tag is the resolved Akkoma `appVersion` (e.g. `v3.19.0`), alongside `latest` and a branch/PR-ref tag (e.g. `main`); it never carries the chart's own SemVer. `ghcr.io/adamancini/akkoma:<tag>` always means "this tag is the version of Akkoma running inside," full stop — bumping Akkoma versions is a deliberate edit to `appVersion` in `Chart.yaml`, not something tied to a chart release.
 
 ### Version Scheme
 
-- Chart version follows SemVer
-- appVersion tracks Akkoma release version
+- Chart version follows SemVer — tracks the chart's own packaging/release cadence, independent of the Akkoma version it happens to reference
+- appVersion tracks the pinned Akkoma release version, and is also the container image's only version tag
 - Update CHANGELOG.md for each release
 
 ### Testing Requirements
