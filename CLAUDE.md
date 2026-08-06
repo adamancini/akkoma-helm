@@ -321,6 +321,7 @@ git tag chart-v0.5.0 && git push origin chart-v0.5.0
 ### Version Scheme
 
 - Chart version follows SemVer — tracks the chart's own packaging/release cadence, independent of the Akkoma version it happens to reference
+- While the chart is pre-1.0, a breaking change (e.g. anything that requires manual intervention on an existing installation, like the UID renumbering in 0.5.0) bumps the minor version, not the patch version — even though SemVer's own pre-1.0 rules don't require this, it keeps the version number a meaningful signal of "this needs your attention before upgrading"
 - appVersion tracks the pinned Akkoma release version, and is also the container image's only version tag
 - Update CHANGELOG.md for each release
 
