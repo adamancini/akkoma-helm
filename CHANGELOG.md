@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-08-06
+
+### Fixed
+
+- 0.4.7's fix resolved the upstream Akkoma `stable` alias once per build and used that to tag the image, but still built the image itself against the literal `stable` alias — and `stable` is a moving pointer, not an immutable release: it can advance to a new unreleased commit under the same version number (`git describe` output like `3.19.0-N-g<sha>`) between separate CI runs, so the pushed tag was not guaranteed to match the image contents, and two builds of the same nominal version were not reproducible.
+- `build-image.yml` no longer resolves anything from the network. It now reads the pinned `appVersion` directly out of `charts/akkoma/Chart.yaml` and passes that exact string as the `AKKOMA_VERSION` build-arg, which resolves to an immutable, version-specific path upstream (confirmed present for both current and historical releases, e.g. `v3.17.0`, `v3.19.0`). The same value is used as the image tag. Every build of a given commit now downloads the same bits, and bumping the Akkoma version is now a deliberate, visible change to `appVersion` rather than something that can silently drift on an ordinary `main` rebuild.
+- No functional chart changes; `appVersion` remains `v3.19.0`.
+
 ## [0.4.7] - 2026-08-06
 
 ### Fixed

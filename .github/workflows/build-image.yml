@@ -38,21 +38,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Resolve upstream Akkoma version
+      - name: Read pinned Akkoma version from Chart.yaml
         id: akkoma
-        if: github.event_name != 'pull_request'
         run: |
-          curl -fsSL --retry 3 --retry-delay 5 \
-            "https://akkoma-updates.s3-website.fr-par.scw.cloud/stable/akkoma-amd64-musl.zip" \
-            -o /tmp/akkoma-stable.zip
-          version=$(unzip -l /tmp/akkoma-stable.zip \
-            | grep -oE 'release/releases/[0-9]+\.[0-9]+\.[0-9]+' \
-            | head -1 | cut -d/ -f3)
-          if [ -z "$version" ]; then
-            echo "ERROR: could not resolve Akkoma release version from stable archive" >&2
+          raw=$(grep -m1 '^appVersion:' charts/akkoma/Chart.yaml | sed -E 's/^appVersion:[[:space:]]*//; s/[[:space:]]*$//')
+          version=$(printf '%s' "$raw" | sed -E "s/^[\"']//; s/[\"']\$//")
+          if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: appVersion '$version' in charts/akkoma/Chart.yaml is not a valid vX.Y.Z Akkoma release version" >&2
             exit 1
           fi
-          echo "version=v${version}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -74,7 +69,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.akkoma.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=${{ steps.akkoma.outputs.version }},enable=${{ github.event_name != 'pull_request' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -87,7 +82,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            AKKOMA_VERSION=${{ steps.akkoma.outputs.version || 'stable' }}
+            AKKOMA_VERSION=${{ steps.akkoma.outputs.version }}
 
       - name: Run Trivy vulnerability scanner
         if: github.event_name != 'pull_request'
