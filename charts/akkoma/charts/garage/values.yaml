@@ -3,7 +3,7 @@
 
 image:
   repository: dxflrs/garage
-  tag: "v1.0.1"
+  tag: "v1.3.1"
   pullPolicy: IfNotPresent
 
 # Storage configuration
