@@ -165,11 +165,18 @@ jobs:
           kubectl apply --server-side -f https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
           kubectl rollout status deployment -n cnpg-system cnpg-controller-manager --timeout=120s
 
-      - name: Prepare external-db test secret
+      - name: Deploy standalone PostgreSQL for external-db test
         if: steps.list-changed.outputs.changed == 'true'
         run: |
           kubectl create namespace ct-akkoma
           kubectl create secret generic pg-password --from-literal=password=ct-test-password -n ct-akkoma
+          kubectl run postgres-external --image=postgres:15-alpine -n ct-akkoma \
+            --env=POSTGRES_USER=akkoma --env=POSTGRES_PASSWORD=ct-test-password --env=POSTGRES_DB=akkoma \
+            --port=5432 --labels=app=postgres-external
+          kubectl expose pod postgres-external --name=postgres -n ct-akkoma --port=5432
+          kubectl wait --for=condition=ready pod/postgres-external -n ct-akkoma --timeout=120s
+          kubectl exec -n ct-akkoma postgres-external -- psql -U akkoma -d akkoma -c \
+            'CREATE EXTENSION IF NOT EXISTS citext; CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
       - name: Run chart-testing (install)
         if: steps.list-changed.outputs.changed == 'true'
@@ -177,4 +184,4 @@ jobs:
           ct install \
             --target-branch ${{ github.event.repository.default_branch }} \
             --namespace ct-akkoma \
-            --helm-extra-set-args '--set=akkoma.domain=test.example.com --set=akkoma.adminEmail=admin@test.example.com'
+            --helm-extra-set-args '--set=akkoma.domain=test.example.com --set=akkoma.adminEmail=admin@test.example.com --set=postgresql.external.host=postgres.ct-akkoma.svc.cluster.local'

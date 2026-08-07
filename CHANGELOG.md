@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `Chart Testing (ct)` CI job's `ct install` step ran against `charts/akkoma/ci/cnpg-*.yaml` (which enable a CloudNativePG `Cluster` resource) without ever installing the CNPG operator/CRDs into the ephemeral kind cluster, so any PR touching `charts/akkoma/` would fail with "no matches for kind Cluster in version postgresql.cnpg.io/v1". Added a step installing the CNPG operator (pinned to `v1.30.0` via its GitHub release asset) before the install step.
-- `charts/akkoma/ci/external-db-values.yaml` simulates a pre-existing external database and references a `pg-password` secret that's expected to already exist out-of-band, but the CI job never created it, so that scenario always failed once it was reachable (previously masked by the CNPG gap above). `ct install` now runs against a fixed `ct-akkoma` namespace (via `--namespace`) that's pre-seeded with the secret before install.
+- `charts/akkoma/ci/external-db-values.yaml` simulates a pre-existing external database and references a `pg-password` secret that's expected to already exist out-of-band, but the CI job never created it, and the scenario's `postgres.example.com` host doesn't resolve to anything in the ephemeral kind cluster either — both issues were previously masked by the CNPG gap above, since the job never got far enough to hit them. `ct install` now runs against a fixed `ct-akkoma` namespace (via `--namespace`) pre-seeded with the secret and a real throwaway `postgres:15-alpine` instance (with the extensions Akkoma requires), and the install's `--helm-extra-set-args` overrides `postgresql.external.host` to point at it — the checked-in values file itself is untouched.
 
 ## [0.5.0] - 2026-08-06
 
