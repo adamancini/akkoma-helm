@@ -165,11 +165,20 @@ jobs:
           kubectl apply --server-side -f https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
           kubectl rollout status deployment -n cnpg-system cnpg-controller-manager --timeout=120s
 
+      - name: Install Prometheus Operator ServiceMonitor CRD
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.93.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+
       - name: Deploy standalone PostgreSQL for external-db test
         if: steps.list-changed.outputs.changed == 'true'
         run: |
           kubectl create namespace ct-akkoma
           kubectl create secret generic pg-password --from-literal=password=ct-test-password -n ct-akkoma
+          kubectl create secret generic my-akkoma-secrets -n ct-akkoma \
+            --from-literal=secret-key-base=ct-test-secret-key-base-0123456789abcdefghijklmnopqrstuvwxyz0123456789ab \
+            --from-literal=signing-salt=ctsalt01 \
+            --from-literal=release-cookie=ct-test-release-cookie-0123456789abcdefghijklmnopqrstuvwxyz0123456789ab
           kubectl run postgres-external --image=postgres:15-alpine -n ct-akkoma \
             --env=POSTGRES_USER=akkoma --env=POSTGRES_PASSWORD=ct-test-password --env=POSTGRES_DB=akkoma \
             --port=5432 --labels=app=postgres-external
