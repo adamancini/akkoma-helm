@@ -175,6 +175,10 @@ jobs:
             --port=5432 --labels=app=postgres-external
           kubectl expose pod postgres-external --name=postgres -n ct-akkoma --port=5432
           kubectl wait --for=condition=ready pod/postgres-external -n ct-akkoma --timeout=120s
+          for i in $(seq 1 30); do
+            kubectl exec -n ct-akkoma postgres-external -- pg_isready -U akkoma && break
+            sleep 2
+          done
           kubectl exec -n ct-akkoma postgres-external -- psql -U akkoma -d akkoma -c \
             'CREATE EXTENSION IF NOT EXISTS citext; CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
