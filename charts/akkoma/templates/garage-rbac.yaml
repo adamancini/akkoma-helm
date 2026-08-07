@@ -28,6 +28,10 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  resourceNames: ["{{ include "akkoma.fullname" . }}"]
+  verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

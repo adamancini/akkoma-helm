@@ -178,6 +178,20 @@ spec:
               -H "Content-Type: application/json" \
               -d "${SECRET_JSON}" \
               "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets" > /dev/null
+
+            # The akkoma Deployment's S3 env vars are optional so it can reach
+            # Ready without this secret (helm install --wait would otherwise
+            # deadlock: it blocks on Deployment readiness before running this
+            # post-install hook). Restart it now so it picks up real creds.
+            echo "Restarting akkoma Deployment to pick up S3 credentials..."
+            DEPLOYMENT_NAME="{{ include "akkoma.fullname" . }}"
+            RESTART_PATCH="{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
+            curl -sf --cacert "${CA_CERT}" \
+              -X PATCH \
+              -H "Authorization: Bearer ${SA_TOKEN}" \
+              -H "Content-Type: application/strategic-merge-patch+json" \
+              -d "${RESTART_PATCH}" \
+              "${KUBE_API}/apis/apps/v1/namespaces/${NAMESPACE}/deployments/${DEPLOYMENT_NAME}" > /dev/null
           fi
 
           echo "Garage setup complete!"
