@@ -165,9 +165,16 @@ jobs:
           kubectl apply --server-side -f https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
           kubectl rollout status deployment -n cnpg-system cnpg-controller-manager --timeout=120s
 
+      - name: Prepare external-db test secret
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          kubectl create namespace ct-akkoma
+          kubectl create secret generic pg-password --from-literal=password=ct-test-password -n ct-akkoma
+
       - name: Run chart-testing (install)
         if: steps.list-changed.outputs.changed == 'true'
         run: |
           ct install \
             --target-branch ${{ github.event.repository.default_branch }} \
+            --namespace ct-akkoma \
             --helm-extra-set-args '--set=akkoma.domain=test.example.com --set=akkoma.adminEmail=admin@test.example.com'
