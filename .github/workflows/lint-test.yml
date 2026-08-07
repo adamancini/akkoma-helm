@@ -159,6 +159,12 @@ jobs:
         if: steps.list-changed.outputs.changed == 'true'
         uses: helm/kind-action@v1.14.0
 
+      - name: Install CloudNativePG operator
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          kubectl apply --server-side -f https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
+          kubectl rollout status deployment -n cnpg-system cnpg-controller-manager --timeout=120s
+
       - name: Run chart-testing (install)
         if: steps.list-changed.outputs.changed == 'true'
         run: |

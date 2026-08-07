@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bumped bundled `dxflrs/garage` image tag from `v1.0.1` to `v1.3.1` (same major version, no breaking changes). Chart version bump only to satisfy `ct lint`'s version-bump check.
 
+### Fixed
+
+- `Chart Testing (ct)` CI job's `ct install` step ran against `charts/akkoma/ci/cnpg-*.yaml` (which enable a CloudNativePG `Cluster` resource) without ever installing the CNPG operator/CRDs into the ephemeral kind cluster, so any PR touching `charts/akkoma/` would fail with "no matches for kind Cluster in version postgresql.cnpg.io/v1". Added a step installing the CNPG operator (pinned to `v1.30.0` via its GitHub release asset) before the install step.
+
 ## [0.5.0] - 2026-08-06
 
 Minor version bump rather than a patch, despite most of this being scan
