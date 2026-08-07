@@ -84,6 +84,7 @@ spec:
       - name: secrets
         secret:
           secretName: {{ include "garage.secretName" . }}
+          defaultMode: 0400
   volumeClaimTemplates:
   - metadata:
       name: meta
