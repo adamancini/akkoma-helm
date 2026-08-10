@@ -77,11 +77,13 @@ spec:
 
             echo "Applying layout..."
             CURRENT_VERSION=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.version')
-            curl -sf -X POST \
+            echo "Current layout version: ${CURRENT_VERSION}"
+            APPLY_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST \
               -H "Authorization: Bearer ${ADMIN_TOKEN}" \
               -H "Content-Type: application/json" \
               -d "{\"version\": $((CURRENT_VERSION + 1))}" \
-              "${GARAGE_ADMIN}/v1/layout/apply"
+              "${GARAGE_ADMIN}/v1/layout/apply")
+            echo "${APPLY_RESPONSE}"
             echo "Layout applied!"
           else
             echo "Layout already configured (${ROLES} role(s))"
