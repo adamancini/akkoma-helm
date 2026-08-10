@@ -20,18 +20,17 @@ spec:
       serviceAccountName: {{ include "akkoma.fullname" . }}-garage-setup
       restartPolicy: OnFailure
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
       - name: garage-setup
         image: alpine:3.23
         imagePullPolicy: IfNotPresent
+        # Runs as root with a writable rootfs: apk add (curl, jq) needs both to
+        # install packages at runtime, which non-root/readOnlyRootFilesystem
+        # can never satisfy. Scoped to this short-lived post-install hook only.
         securityContext:
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
         env:
