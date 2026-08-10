@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-08-10
+
+### Changed
+
+- Bumped `appVersion` to `v3.20.0` (upstream "2026.08 – Searching for Rubies" release) to match the version now resolved from `stable`. No functional chart changes. Checked upstream's `CHANGELOG.md` for the v3.19.0→v3.20.0 diff: the only update note is a conditional RUM full-text-search index migration that only applies to instances with a non-default RUM index config, which this chart doesn't set — no chart-side changes needed.
+
 ## [0.6.0] - 2026-08-10
 
 Minor version bump rather than a patch — `garage.enabled: true` was completely
