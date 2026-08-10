@@ -103,11 +103,17 @@ spec:
                 secretKeyRef:
                   name: {{ include "akkoma.s3SecretName" . }}
                   key: access-key-id
+                  {{- if .Values.garage.enabled }}
+                  optional: true
+                  {{- end }}
             - name: S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "akkoma.s3SecretName" . }}
                   key: secret-access-key
+                  {{- if .Values.garage.enabled }}
+                  optional: true
+                  {{- end }}
             {{- end }}
             volumeMounts:
             - name: config

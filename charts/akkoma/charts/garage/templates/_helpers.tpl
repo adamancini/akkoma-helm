@@ -40,7 +40,8 @@ Resolve a generated garage secret value, returning base64 for a Secret `data:` f
 Precedence: explicit value > existing in-cluster value > random. The in-cluster
 lookup only succeeds during `helm install`/`helm upgrade`.
 
-Args (dict): ctx (root context), value (plaintext), key (data key), length (random length).
+Args (dict): ctx (root context), value (plaintext), key (data key), length (random length),
+format (optional: "hex" for garage's rpc-secret, which requires exactly 32 bytes of hex).
 */}}
 {{- define "garage.resolveSecret" -}}
 {{- if .value -}}
@@ -49,6 +50,8 @@ Args (dict): ctx (root context), value (plaintext), key (data key), length (rand
 {{- $existing := lookup "v1" "Secret" .ctx.Release.Namespace (include "garage.fullname" .ctx) -}}
 {{- if and $existing $existing.data (index $existing.data .key) -}}
 {{- index $existing.data .key -}}
+{{- else if eq .format "hex" -}}
+{{- randAlphaNum 32 | sha256sum | b64enc -}}
 {{- else -}}
 {{- randAlphaNum (.length | int) | b64enc -}}
 {{- end -}}

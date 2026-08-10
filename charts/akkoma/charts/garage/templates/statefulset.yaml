@@ -31,6 +31,14 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
+        env:
+        - name: GARAGE_CONFIG_FILE
+          value: /etc/garage/garage.toml
+        # fsGroup below forces group-read on the mounted rpc-secret regardless of
+        # defaultMode, so a strict 0600 is unreachable; the secret is already
+        # access-controlled by the Secret API/RBAC, not actually world-readable.
+        - name: GARAGE_ALLOW_WORLD_READABLE_SECRETS
+          value: "true"
         ports:
         - name: s3
           containerPort: 3900
@@ -81,6 +89,7 @@ spec:
       - name: secrets
         secret:
           secretName: {{ include "garage.secretName" . }}
+          defaultMode: 0400
   volumeClaimTemplates:
   - metadata:
       name: meta

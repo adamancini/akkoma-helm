@@ -20,18 +20,17 @@ spec:
       serviceAccountName: {{ include "akkoma.fullname" . }}-garage-setup
       restartPolicy: OnFailure
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
       - name: garage-setup
         image: alpine:3.23
         imagePullPolicy: IfNotPresent
+        # Runs as root with a writable rootfs: apk add (curl, jq) needs both to
+        # install packages at runtime, which non-root/readOnlyRootFilesystem
+        # can never satisfy. Scoped to this short-lived post-install hook only.
         securityContext:
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
         env:
@@ -52,6 +51,24 @@ spec:
           SECRET_NAME="{{ include "akkoma.fullname" . }}-s3"
           KUBE_API="https://kubernetes.default.svc"
           SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+          # Garage's layout capacity must reflect real storage, in bytes -- it
+          # rejects nominal/too-small values ("storage capacity of the cluster
+          # is too small"). Convert the configured data volume size (a
+          # Kubernetes quantity like "10Gi") to bytes.
+          DATA_SIZE="{{ .Values.garage.persistence.data.size }}"
+          case "${DATA_SIZE}" in
+            *Ki) CAPACITY_BYTES=$(( ${DATA_SIZE%Ki} * 1024 )) ;;
+            *Mi) CAPACITY_BYTES=$(( ${DATA_SIZE%Mi} * 1024 * 1024 )) ;;
+            *Gi) CAPACITY_BYTES=$(( ${DATA_SIZE%Gi} * 1024 * 1024 * 1024 )) ;;
+            *Ti) CAPACITY_BYTES=$(( ${DATA_SIZE%Ti} * 1024 * 1024 * 1024 * 1024 )) ;;
+            *K) CAPACITY_BYTES=$(( ${DATA_SIZE%K} * 1000 )) ;;
+            *M) CAPACITY_BYTES=$(( ${DATA_SIZE%M} * 1000 * 1000 )) ;;
+            *G) CAPACITY_BYTES=$(( ${DATA_SIZE%G} * 1000 * 1000 * 1000 )) ;;
+            *T) CAPACITY_BYTES=$(( ${DATA_SIZE%T} * 1000 * 1000 * 1000 * 1000 )) ;;
+            *) CAPACITY_BYTES="${DATA_SIZE}" ;;
+          esac
+          echo "Layout capacity: ${CAPACITY_BYTES} bytes (from persistence.data.size=${DATA_SIZE})"
           CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
           echo "Waiting for Garage admin API..."
@@ -73,17 +90,22 @@ spec:
             curl -sf -X POST \
               -H "Authorization: Bearer ${ADMIN_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": 1, \"tags\": [\"akkoma\"]}]" \
+              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": ${CAPACITY_BYTES}, \"tags\": [\"akkoma\"]}]" \
               "${GARAGE_ADMIN}/v1/layout"
 
             echo "Applying layout..."
             CURRENT_VERSION=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.version')
-            curl -sf -X POST \
+            echo "Current layout version: ${CURRENT_VERSION}"
+            APPLY_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST \
               -H "Authorization: Bearer ${ADMIN_TOKEN}" \
               -H "Content-Type: application/json" \
               -d "{\"version\": $((CURRENT_VERSION + 1))}" \
-              "${GARAGE_ADMIN}/v1/layout/apply"
-            echo "Layout applied!"
+              "${GARAGE_ADMIN}/v1/layout/apply")
+            echo "${APPLY_RESPONSE}"
+            case "${APPLY_RESPONSE}" in
+              *HTTP_STATUS:2??*) echo "Layout applied!" ;;
+              *) echo "Layout apply failed"; exit 1 ;;
+            esac
           else
             echo "Layout already configured (${ROLES} role(s))"
           fi
@@ -178,6 +200,20 @@ spec:
               -H "Content-Type: application/json" \
               -d "${SECRET_JSON}" \
               "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets" > /dev/null
+
+            # The akkoma Deployment's S3 env vars are optional so it can reach
+            # Ready without this secret (helm install --wait would otherwise
+            # deadlock: it blocks on Deployment readiness before running this
+            # post-install hook). Restart it now so it picks up real creds.
+            echo "Restarting akkoma Deployment to pick up S3 credentials..."
+            DEPLOYMENT_NAME="{{ include "akkoma.fullname" . }}"
+            RESTART_PATCH="{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
+            curl -sf --cacert "${CA_CERT}" \
+              -X PATCH \
+              -H "Authorization: Bearer ${SA_TOKEN}" \
+              -H "Content-Type: application/strategic-merge-patch+json" \
+              -d "${RESTART_PATCH}" \
+              "${KUBE_API}/apis/apps/v1/namespaces/${NAMESPACE}/deployments/${DEPLOYMENT_NAME}" > /dev/null
           fi
 
           echo "Garage setup complete!"
