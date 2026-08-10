@@ -32,3 +32,15 @@ coverage/
 *.log
 logs/
 .worktrees/
+
+# Paivot runtime state (managed by pvg)
+.vault/issues/
+.vault/.nd.yaml
+.vault/.piv-loop-state.json
+.vault/.piv-loop-snapshot.json
+.vault/.dispatcher-state.json
+.vault/.vlt.lock
+.vault/.guard/
+
+# Codebase memory MCP local index state
+.codebase-memory/
