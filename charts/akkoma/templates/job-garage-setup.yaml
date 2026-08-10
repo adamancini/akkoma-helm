@@ -51,6 +51,24 @@ spec:
           SECRET_NAME="{{ include "akkoma.fullname" . }}-s3"
           KUBE_API="https://kubernetes.default.svc"
           SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+          # Garage's layout capacity must reflect real storage, in bytes -- it
+          # rejects nominal/too-small values ("storage capacity of the cluster
+          # is too small"). Convert the configured data volume size (a
+          # Kubernetes quantity like "10Gi") to bytes.
+          DATA_SIZE="{{ .Values.garage.persistence.data.size }}"
+          case "${DATA_SIZE}" in
+            *Ki) CAPACITY_BYTES=$(( ${DATA_SIZE%Ki} * 1024 )) ;;
+            *Mi) CAPACITY_BYTES=$(( ${DATA_SIZE%Mi} * 1024 * 1024 )) ;;
+            *Gi) CAPACITY_BYTES=$(( ${DATA_SIZE%Gi} * 1024 * 1024 * 1024 )) ;;
+            *Ti) CAPACITY_BYTES=$(( ${DATA_SIZE%Ti} * 1024 * 1024 * 1024 * 1024 )) ;;
+            *K) CAPACITY_BYTES=$(( ${DATA_SIZE%K} * 1000 )) ;;
+            *M) CAPACITY_BYTES=$(( ${DATA_SIZE%M} * 1000 * 1000 )) ;;
+            *G) CAPACITY_BYTES=$(( ${DATA_SIZE%G} * 1000 * 1000 * 1000 )) ;;
+            *T) CAPACITY_BYTES=$(( ${DATA_SIZE%T} * 1000 * 1000 * 1000 * 1000 )) ;;
+            *) CAPACITY_BYTES="${DATA_SIZE}" ;;
+          esac
+          echo "Layout capacity: ${CAPACITY_BYTES} bytes (from persistence.data.size=${DATA_SIZE})"
           CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
           echo "Waiting for Garage admin API..."
@@ -72,7 +90,7 @@ spec:
             curl -sf -X POST \
               -H "Authorization: Bearer ${ADMIN_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": 1, \"tags\": [\"akkoma\"]}]" \
+              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": ${CAPACITY_BYTES}, \"tags\": [\"akkoma\"]}]" \
               "${GARAGE_ADMIN}/v1/layout"
 
             echo "Applying layout..."
@@ -84,7 +102,10 @@ spec:
               -d "{\"version\": $((CURRENT_VERSION + 1))}" \
               "${GARAGE_ADMIN}/v1/layout/apply")
             echo "${APPLY_RESPONSE}"
-            echo "Layout applied!"
+            case "${APPLY_RESPONSE}" in
+              *HTTP_STATUS:2??*) echo "Layout applied!" ;;
+              *) echo "Layout apply failed"; exit 1 ;;
+            esac
           else
             echo "Layout already configured (${ROLES} role(s))"
           fi
