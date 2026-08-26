@@ -2,7 +2,7 @@ apiVersion: v2
 name: akkoma
 description: A Helm chart for deploying Akkoma, a federated social networking server (ActivityPub/Fediverse)
 type: application
-version: 0.6.1
+version: 0.6.2
 appVersion: "v3.20.0"
 keywords:
   - akkoma

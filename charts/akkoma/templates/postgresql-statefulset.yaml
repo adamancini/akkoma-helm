@@ -83,6 +83,10 @@ spec:
           timeoutSeconds: 3
           failureThreshold: 3
       volumes:
+      {{- if not .Values.postgresql.persistence.enabled }}
+      - name: data
+        emptyDir: {}
+      {{- end }}
       - name: init-scripts
         configMap:
           name: {{ include "akkoma.fullname" . }}-postgresql-init
@@ -95,6 +99,7 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: 8Mi
+  {{- if .Values.postgresql.persistence.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: data
@@ -106,4 +111,5 @@ spec:
       resources:
         requests:
           storage: {{ .Values.postgresql.storageSize }}
+  {{- end }}
 {{- end }}

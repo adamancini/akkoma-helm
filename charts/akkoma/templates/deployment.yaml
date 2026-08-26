@@ -318,11 +318,19 @@ spec:
           name: {{ include "akkoma.fullname" . }}-config
           defaultMode: 0640  # Remove world-readable permissions
       - name: uploads
+        {{- if .Values.storage.uploads.persistence.enabled }}
         persistentVolumeClaim:
           claimName: {{ include "akkoma.fullname" . }}-uploads
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       - name: frontends
+        {{- if .Values.storage.frontends.persistence.enabled }}
         persistentVolumeClaim:
           claimName: {{ include "akkoma.fullname" . }}-frontends
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       # tmpfs volumes for read-only root filesystem
       # BEAM VM requires writable /tmp for System.tmp_dir and release runtime
       - name: tmp
