@@ -77,6 +77,15 @@ postgresql:
   # Storage settings
   storageSize: 10Gi
   storageClass: ""  # Use cluster default
+  persistence:
+    # false: use an emptyDir instead of a PVC for the bundled StatefulSet's
+    # data volume. Only applies to the bundled StatefulSet path (ignored
+    # when postgresql.external.enabled or postgresql.cnpg.enabled is true).
+    # For clusters with no CSI driver / default StorageClass, where a PVC
+    # would otherwise stay Pending forever. Data is lost on every pod
+    # restart or reschedule -- fine for a demo/ephemeral instance, not for
+    # anything you want to keep.
+    enabled: true
 
   # Database connection details
   database: "akkoma"
@@ -154,9 +163,20 @@ storage:
   uploads:
     size: 50Gi
     storageClass: ""
+    persistence:
+      # false: use an emptyDir instead of a PVC. Contents (uploaded media)
+      # are lost on every pod restart or reschedule -- see
+      # postgresql.persistence.enabled for when this is appropriate.
+      enabled: true
   frontends:
     size: 5Gi
     storageClass: ""
+    persistence:
+      # false: use an emptyDir instead of a PVC. install-frontends re-runs
+      # on every pod (re)start regardless, so losing this volume only costs
+      # a re-download, not data -- safe to disable even outside the
+      # no-StorageClass case if you'd rather not provision it at all.
+      enabled: true
   # S3-compatible storage (used when storage.type is "s3")
   s3:
     # S3 endpoint (e.g. s3.amazonaws.com, s3.us-west-2.amazonaws.com, s3.garage.localhost)

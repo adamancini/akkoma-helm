@@ -1,0 +1,16 @@
+# CI test: ephemeral storage (no CSI driver / default StorageClass in the target cluster)
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+postgresql:
+  persistence:
+    enabled: false
+
+storage:
+  uploads:
+    persistence:
+      enabled: false
+  frontends:
+    persistence:
+      enabled: false

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-08-26
+
+### Added
+
+- `postgresql.persistence.enabled`, `storage.uploads.persistence.enabled`, `storage.frontends.persistence.enabled` (all default `true`, preserving existing behavior). Set any to `false` to use an `emptyDir` instead of a PVC for that volume -- for clusters with no CSI driver / default StorageClass, where a PVC would otherwise stay `Pending` forever (`FailedScheduling: pod has unbound immediate PersistentVolumeClaims`). Data in that volume is lost on every pod restart or reschedule; appropriate for a demo/ephemeral instance, not one you want to keep. Only the bundled PostgreSQL StatefulSet path respects `postgresql.persistence.enabled` -- ignored when `postgresql.external.enabled` or `postgresql.cnpg.enabled` is true, both of which manage their own storage.
+
 ## [0.6.1] - 2026-08-10
 
 ### Changed
