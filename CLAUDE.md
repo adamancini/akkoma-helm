@@ -310,12 +310,12 @@ GitHub Actions builds and packages; Kargo (project `team-ada` in `akuity/sedemo-
 
 | Artifact | main | PR (same-repo only; fork PRs build without pushing) |
 |---|---|---|
-| Image `ghcr.io/adamancini/akkoma` | `main-<sha8>`, `main`, `latest` | `<branch-slug>-<sha8>`, `<branch-slug>` |
-| Chart `oci://ghcr.io/adamancini/charts/akkoma` | `0.0.0-main.<UTC ts>.g<sha8>`, pinning `image.tag: main-<sha8>` | none |
+| Image `ghcr.io/adamancini/akkoma` | `main-<ts>-<sha8>`, `main`, `latest` | `<branch-slug>-<ts>-<sha8>`, `<branch-slug>` |
+| Chart `oci://ghcr.io/adamancini/charts/akkoma` | `0.0.0-main.<UTC ts>.g<sha8>`, pinning `image.tag: main-<ts>-<sha8>` | none |
 
 Images are content-addressed: main also tags each build `inputs-<hash>` (hash of the Dockerfile + Akkoma version), and any later commit with the same inputs re-tags that image instead of rebuilding, so chart-only commits keep the same digest. If the Dockerfile ever `COPY`s from the build context, add those paths to the hash in `build-image.yml`. PR branch slugs are `[a-z0-9-]`, at most 50 chars; slugs that would collide with a meaningful tag (`main`, `latest`, all digits, `inputs*`) get a `branch-` prefix.
 
-The dev-lane chart version comes from `.github/scripts/dev-chart-version.sh` (deterministic per commit, sorts in commit order). Kargo's dev Warehouse selects it with `semverConstraint: '>=0.0.0-0 <0.0.1-0'` and pairs it with the `main-<sha8>` image via `freightCreationCriteria`, so image and chart must always share a trigger.
+The dev-lane chart version comes from `.github/scripts/build-ids.sh`, which also gives the image tag; `<ts>` is the UTC committer time, so both sort in commit order even when content-addressing gives consecutive commits the same image digest and build time. Kargo's dev Warehouse selects charts with `semverConstraint: '>=0.0.0-0 <0.0.1-0'`, images with `imageSelectionStrategy: Lexical` over `^main-[0-9]{14}-[0-9a-f]{8}$`, and pairs the two via `freightCreationCriteria`, so image and chart must always share a trigger.
 
 **Releases** (`release.yml`, `workflow_dispatch` only): normally dispatched by Kargo's `release` Stage with the dev Freight's commit and a version supplied at promotion time. Escape hatch when Kargo is unavailable:
 
@@ -325,7 +325,7 @@ gh workflow run release.yml -f sha=<commit on main> -f version=0.7.0
 
 It refuses non-`X.Y.Z` versions, versions not newer than the latest `chart-v*` tag, already-published versions, and commits without a dev chart. Then, in this order, so Kargo's release Warehouse never sees a chart without its image:
 
-1. Re-tags (never rebuilds) `main-<sha8>` as the chart's `appVersion` (e.g. `v3.20.0`). That tag is write-once: re-releasing an unchanged image is a no-op, but if it exists at a different digest (the image changed without an Akkoma bump) the release fails unless `overwrite-image-tag=true`, which also changes what earlier releases pinning that tag pull.
+1. Re-tags (never rebuilds) `main-<ts>-<sha8>` as the chart's `appVersion` (e.g. `v3.20.0`). That tag is write-once: re-releasing an unchanged image is a no-op, but if it exists at a different digest (the image changed without an Akkoma bump) the release fails unless `overwrite-image-tag=true`, which also changes what earlier releases pinning that tag pull.
 2. Repackages the dev chart with only `version` and `image.tag` (→ `""`, i.e. appVersion) changed, verified by reversing both edits and diffing. Staging/prod run the same templates and image digest dev ran.
 3. Pushes the chart, then tags the commit `chart-v<version>`, creates the GitHub Release, updates the gh-pages index.
 
@@ -333,7 +333,7 @@ Re-running with the same inputs after a partial failure is safe: steps skip what
 
 `version:` in `charts/akkoma/Chart.yaml` is not the release version and is not bumped per PR (`ct.yaml` disables ct's version-increment check). Both workflows stamp their own.
 
-**Image tag meaning**: the only *version* tag an image carries is the Akkoma `appVersion` it runs, and it only appears once a chart release pins it. Everything else is a ref tag (`main-<sha8>`, `<branch-slug>`, `main`, `latest`). An image tag never carries the chart's SemVer. Bumping Akkoma is a deliberate edit to `appVersion`, not something tied to a chart release.
+**Image tag meaning**: the only *version* tag an image carries is the Akkoma `appVersion` it runs, and it only appears once a chart release pins it. Everything else is a ref tag (`main-<ts>-<sha8>`, `<branch-slug>`, `main`, `latest`). An image tag never carries the chart's SemVer. Bumping Akkoma is a deliberate edit to `appVersion`, not something tied to a chart release.
 
 ### Version Scheme
 
