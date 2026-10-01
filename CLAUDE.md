@@ -306,12 +306,14 @@ kubectl rollout restart deployment/akkoma
 
 GitHub Actions builds and packages; Kargo (project `team-ada` in `akuity/sedemo-platform`) owns promotion: what goes where, when, and which commit becomes a release. Keep promotion logic out of the workflows.
 
-**Every commit** (`build-image.yml`, on changes to `Dockerfile`, `charts/**`, or `.github/`):
+**Every commit** (`build-image.yml`, on changes to `Dockerfile`, `charts/**`, `.github/workflows/build-image.yml` or `.github/scripts/**`):
 
 | Artifact | main | PR (same-repo only; fork PRs build without pushing) |
 |---|---|---|
 | Image `ghcr.io/adamancini/akkoma` | `main-<sha8>`, `main`, `latest` | `<branch-slug>-<sha8>`, `<branch-slug>` |
 | Chart `oci://ghcr.io/adamancini/charts/akkoma` | `0.0.0-main.<UTC ts>.g<sha8>`, pinning `image.tag: main-<sha8>` | none |
+
+Images are content-addressed: main also tags each build `inputs-<hash>` (hash of the Dockerfile + Akkoma version), and any later commit with the same inputs re-tags that image instead of rebuilding, so chart-only commits keep the same digest. If the Dockerfile ever `COPY`s from the build context, add those paths to the hash in `build-image.yml`. PR branch slugs are `[a-z0-9-]`, at most 50 chars; slugs that would collide with a meaningful tag (`main`, `latest`, all digits, `inputs*`) get a `branch-` prefix.
 
 The dev-lane chart version comes from `.github/scripts/dev-chart-version.sh` (deterministic per commit, sorts in commit order). Kargo's dev Warehouse selects it with `semverConstraint: '>=0.0.0-0 <0.0.1-0'` and pairs it with the `main-<sha8>` image via `freightCreationCriteria`, so image and chart must always share a trigger.
 
@@ -323,9 +325,11 @@ gh workflow run release.yml -f sha=<commit on main> -f version=0.7.0
 
 It refuses non-`X.Y.Z` versions, versions not newer than the latest `chart-v*` tag, already-published versions, and commits without a dev chart. Then, in this order, so Kargo's release Warehouse never sees a chart without its image:
 
-1. Re-tags (never rebuilds) `main-<sha8>` as the chart's `appVersion` (e.g. `v3.20.0`). That tag is write-once: if it already exists at a different digest the release fails unless `overwrite-image-tag=true`.
+1. Re-tags (never rebuilds) `main-<sha8>` as the chart's `appVersion` (e.g. `v3.20.0`). That tag is write-once: re-releasing an unchanged image is a no-op, but if it exists at a different digest (the image changed without an Akkoma bump) the release fails unless `overwrite-image-tag=true`, which also changes what earlier releases pinning that tag pull.
 2. Repackages the dev chart with only `version` and `image.tag` (→ `""`, i.e. appVersion) changed, verified by reversing both edits and diffing. Staging/prod run the same templates and image digest dev ran.
 3. Pushes the chart, then tags the commit `chart-v<version>`, creates the GitHub Release, updates the gh-pages index.
+
+Re-running with the same inputs after a partial failure is safe: steps skip what this release already published and fail on any conflict. Registry lookups go through `.github/scripts/registry-lib.sh`, which treats only "not found" as absent; any other registry error fails the run rather than risk overwriting a mutable ghcr tag.
 
 `version:` in `charts/akkoma/Chart.yaml` is not the release version and is not bumped per PR (`ct.yaml` disables ct's version-increment check). Both workflows stamp their own.
 

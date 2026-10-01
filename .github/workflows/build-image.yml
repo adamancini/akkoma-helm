@@ -9,6 +9,14 @@ name: Build and Push Container Image
 # Image and chart share one trigger so every main commit that produces a
 # chart also produces its image; Kargo's freightCreationCriteria relies on
 # the two always coming in matched pairs.
+#
+# Images are content-addressed: the build inputs (Dockerfile + Akkoma
+# version) are hashed, and main publishes the result as inputs-<hash>. When
+# that tag already exists the image is re-tagged instead of rebuilt, so
+# chart-only commits keep the same digest. That is what lets release.yml keep
+# the <appVersion> tag write-once: re-releasing the same Akkoma version with
+# an unchanged image is a no-op. Base image updates only take effect through
+# a Dockerfile change (pin FROM by digest to make them explicit).
 
 on:
   push:
@@ -27,8 +35,10 @@ on:
       - '.github/scripts/**'
 
 concurrency:
-  group: build-image-${{ github.ref }}
-  # Superseded PR pushes can be dropped; every main commit needs its artifacts.
+  # PRs: one group per branch, superseded pushes cancelled. main: one group
+  # per commit -- GitHub keeps only one *pending* run per group and cancels
+  # the rest, and every main commit needs its artifacts.
+  group: build-image-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -78,11 +88,20 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
           SAME_REPO: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+          AKKOMA_VERSION: ${{ steps.akkoma.outputs.version }}
         run: |
           sha=$(git rev-parse HEAD)
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            # DNS-label style ([a-z0-9-], <=50 chars), close to Argo CD's
+            # PR generator branch_slug, so preview tooling can derive it too.
             slug=$(printf '%s' "$HEAD_REF" | tr '[:upper:]' '[:lower:]' \
-              | sed -E 's/[^a-z0-9.-]+/-/g' | cut -c1-100 | sed -E 's/^[.-]+//; s/[.-]+$//')
+              | sed -E 's/[^a-z0-9]+/-/g; s/^-+//' | cut -c1-50 | sed -E 's/-+$//')
+            # Never let a branch name produce a tag that means something
+            # else: main-<sha8>/main/latest (dev lane), a bare number, or
+            # inputs-<hash> (content address).
+            if [[ "$slug" =~ ^(main|latest|[0-9]+|inputs(-.*)?)$ ]]; then
+              slug="branch-${slug}"
+            fi
           else
             slug=main
           fi
@@ -90,9 +109,14 @@ jobs:
             echo "ERROR: could not derive an image tag from branch '$HEAD_REF'" >&2
             exit 1
           fi
+          # Everything that determines the image's contents. The Dockerfile
+          # copies nothing from the build context today; if it ever does, add
+          # those paths here or images will be wrongly reused.
+          inputs=$({ cat Dockerfile; printf 'AKKOMA_VERSION=%s\n' "$AKKOMA_VERSION"; } | sha256sum | cut -c1-16)
           {
             echo "primary=${slug}-${sha:0:8}"
             echo "slug=${slug}"
+            echo "inputs=inputs-${inputs}"
             # Fork PRs get no write token; build them without pushing.
             echo "push=${SAME_REPO}"
           } >> "$GITHUB_OUTPUT"
@@ -105,30 +129,79 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Look for an existing build of these inputs
+        id: reuse
+        if: steps.tags.outputs.push == 'true'
+        env:
+          INPUTS_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.inputs }}
+        run: |
+          source .github/scripts/registry-lib.sh
+          digest=$(image_digest "$INPUTS_REF") && rc=0 || rc=$?
+          case $rc in
+            0) echo "Reusing ${INPUTS_REF} (${digest})"; echo "hit=true" >> "$GITHUB_OUTPUT" ;;
+            1) echo "No build of these inputs yet"; echo "hit=false" >> "$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
+
       - name: Extract metadata
         id: meta
+        if: steps.reuse.outputs.hit != 'true'
         uses: docker/metadata-action@v6
         env:
           DOCKER_METADATA_PR_HEAD_SHA: 'true'
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.tags.outputs.primary }}
-            type=raw,value=${{ steps.tags.outputs.slug }}
-            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+      - name: Build
+        id: build
+        if: steps.reuse.outputs.hit != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ steps.tags.outputs.push == 'true' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          # Pushed untagged (by digest); tags are applied in the next step,
+          # once we know whether another run already published these inputs.
+          outputs: ${{ steps.tags.outputs.push == 'true' && format('type=image,name={0}/{1},push-by-digest=true,name-canonical=true,push=true', env.REGISTRY, env.IMAGE_NAME) || 'type=cacheonly' }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             AKKOMA_VERSION=${{ steps.akkoma.outputs.version }}
+
+      - name: Tag image
+        if: steps.tags.outputs.push == 'true'
+        env:
+          REPO: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          INPUTS_TAG: ${{ steps.tags.outputs.inputs }}
+          PRIMARY: ${{ steps.tags.outputs.primary }}
+          SLUG: ${{ steps.tags.outputs.slug }}
+          REUSED: ${{ steps.reuse.outputs.hit }}
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          source .github/scripts/registry-lib.sh
+          tags=("${REPO}:${PRIMARY}" "${REPO}:${SLUG}")
+          if [[ "$REUSED" == "true" ]]; then
+            src="${REPO}:${INPUTS_TAG}"
+          else
+            src="${REPO}@${BUILT_DIGEST}"
+            # Only main publishes the content address, and only if no other
+            # run beat us to it -- first build of given inputs wins.
+            if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+              existing=$(image_digest "${REPO}:${INPUTS_TAG}") && rc=0 || rc=$?
+              case $rc in
+                0) echo "Another run published ${INPUTS_TAG} meanwhile; using it"; src="${REPO}@${existing}" ;;
+                1) tags+=("${REPO}:${INPUTS_TAG}") ;;
+                *) exit 1 ;;
+              esac
+            fi
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            tags+=("${REPO}:latest")
+          fi
+          args=()
+          for t in "${tags[@]}"; do args+=(--tag "$t"); done
+          docker buildx imagetools create "${args[@]}" "$src"
+          echo "Tagged ${tags[*]} -> ${src}"
 
       - name: Run Trivy vulnerability scanner
         if: steps.tags.outputs.push == 'true'
