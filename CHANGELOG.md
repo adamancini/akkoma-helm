@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Releases are no longer cut by pushing a `chart-v*` tag. `release.yml` is now `workflow_dispatch`-only (normally triggered by Kargo, or `gh workflow run release.yml -f sha=<commit> -f version=X.Y.Z`); it tags the commit `chart-vX.Y.Z` itself. The release version is supplied at release time; `version` in `Chart.yaml` is no longer bumped per change.
-- The image's `vX.Y.Z` (Akkoma `appVersion`) tag is now created only when a chart release pins it, by re-tagging the already-built `main-<sha8>` image, and is write-once. Every build on `main` is tagged `main-<sha8>`, `main` and `latest`; same-repo PRs are now pushed as `<branch-slug>-<sha8>` and `<branch-slug>`. Images are reused by content (`inputs-<hash>` of the Dockerfile + Akkoma version) rather than rebuilt on every commit, so chart-only changes keep the same image digest.
-- Every commit on `main` publishes a dev chart `0.0.0-main.<timestamp>.g<sha8>` pinning its `main-<sha8>` image. These are prereleases, so `helm install` / `helm pull` without `--version` (or with any constraint lacking a prerelease part, e.g. `>=0.6.0`) never selects them.
+- The image's `vX.Y.Z` (Akkoma `appVersion`) tag is now created only when a chart release pins it, by re-tagging the already-built `main-<ts>-<sha8>` image, and is write-once. Every build on `main` is tagged `main-<ts>-<sha8>`, `main` and `latest`; same-repo PRs are now pushed as `<branch-slug>-<ts>-<sha8>` and `<branch-slug>`. Images are reused by content (`inputs-<hash>` of the Dockerfile + Akkoma version) rather than rebuilt on every commit, so chart-only changes keep the same image digest.
+- Every commit on `main` publishes a dev chart `0.0.0-main.<timestamp>.g<sha8>` pinning its `main-<ts>-<sha8>` image. These are prereleases, so `helm install` / `helm pull` without `--version` (or with any constraint lacking a prerelease part, e.g. `>=0.6.0`) never selects them.
 
 ## [0.6.2] - 2026-08-26
 

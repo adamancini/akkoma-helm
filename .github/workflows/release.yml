@@ -9,7 +9,7 @@ name: Release Helm Chart
 # Kargo decides *whether* and *what* to release; this workflow only enforces
 # packaging invariants, so they hold no matter who dispatched it:
 #   - version is X.Y.Z, newer than every existing chart-v* tag, not yet published
-#   - the image is re-tagged main-<sha8> -> <appVersion>, never rebuilt, and an
+#   - the image is re-tagged main-<ts>-<sha8> -> <appVersion>, never rebuilt, and an
 #     existing <appVersion> tag is never moved unless overwrite-image-tag is set
 #   - the release chart is the dev chart with only `version` and `image.tag`
 #     changed (verified by reversing the edit and diffing)
@@ -120,8 +120,7 @@ jobs:
             echo "version=${version}"
             echo "sha=${sha}"
             echo "tag=${tag}"
-            echo "dev-version=$(.github/scripts/dev-chart-version.sh "$sha")"
-            echo "dev-image-tag=main-${sha:0:8}"
+            .github/scripts/build-ids.sh "$sha" | sed -e 's/^image-tag=/dev-image-tag=/' -e 's/^chart-version=/dev-version=/'
           } >> "$GITHUB_OUTPUT"
 
       - name: Pull dev chart
