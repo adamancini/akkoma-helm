@@ -81,6 +81,7 @@ spec:
         # Configuration file path
         - name: PLEROMA_CONFIG_PATH
           value: /etc/akkoma/prod.secret.exs
+        {{- include "akkoma.beamEnv" . | nindent 8 }}
         # BEAM VM writable paths for read-only root filesystem
         - name: RELEASE_TMP
           value: /tmp/akkoma-release
@@ -246,6 +247,7 @@ spec:
         # Configuration file path
         - name: PLEROMA_CONFIG_PATH
           value: /etc/akkoma/prod.secret.exs
+        {{- include "akkoma.beamEnv" . | nindent 8 }}
         # BEAM VM writable paths for read-only root filesystem
         - name: RELEASE_TMP
           value: /tmp/akkoma-release
