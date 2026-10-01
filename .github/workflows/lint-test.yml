@@ -6,6 +6,7 @@ on:
       - 'charts/**'
       - 'Dockerfile'
       - '.github/workflows/lint-test.yml'
+      - 'ct.yaml'
   push:
     branches:
       - main
@@ -13,6 +14,7 @@ on:
       - 'charts/**'
       - 'Dockerfile'
       - '.github/workflows/lint-test.yml'
+      - 'ct.yaml'
 
 jobs:
   lint-chart:
@@ -146,14 +148,14 @@ jobs:
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          changed=$(ct list-changed --config ct.yaml --target-branch ${{ github.event.repository.default_branch }})
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run chart-testing (lint)
         if: steps.list-changed.outputs.changed == 'true'
-        run: ct lint --target-branch ${{ github.event.repository.default_branch }}
+        run: ct lint --config ct.yaml --target-branch ${{ github.event.repository.default_branch }}
 
       - name: Create kind cluster
         if: steps.list-changed.outputs.changed == 'true'
@@ -194,7 +196,7 @@ jobs:
       - name: Run chart-testing (install)
         if: steps.list-changed.outputs.changed == 'true'
         run: |
-          ct install \
+          ct install --config ct.yaml \
             --target-branch ${{ github.event.repository.default_branch }} \
             --namespace ct-akkoma \
             --helm-extra-set-args '--set=akkoma.domain=test.example.com --set=akkoma.adminEmail=admin@test.example.com --set=postgresql.external.host=postgres.ct-akkoma.svc.cluster.local'

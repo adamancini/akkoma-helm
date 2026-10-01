@@ -1,0 +1,7 @@
+# chart-testing (ct) configuration, used by .github/workflows/lint-test.yml.
+#
+# Version increments are not enforced on PRs: Chart.yaml's `version` is not
+# the release version. Releases get their version at release time (release.yml,
+# dispatched from Kargo's `release` Stage), and every main commit publishes a
+# 0.0.0-main.* dev chart, so a PR never needs a version bump to merge.
+check-version-increment: false
