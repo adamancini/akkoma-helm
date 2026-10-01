@@ -28,12 +28,14 @@ on:
       - 'charts/**'
       - '.github/workflows/build-image.yml'
       - '.github/scripts/**'
+      - 'ct.yaml'
   pull_request:
     paths:
       - 'Dockerfile'
       - 'charts/**'
       - '.github/workflows/build-image.yml'
       - '.github/scripts/**'
+      - 'ct.yaml'
 
 concurrency:
   # PRs: one group per branch, superseded pushes cancelled. main: one group
@@ -58,6 +60,8 @@ jobs:
       security-events: write
     outputs:
       image-tag: ${{ steps.tags.outputs.primary }}
+      pushed: ${{ steps.tags.outputs.push }}
+      akkoma-version: ${{ steps.akkoma.outputs.version }}
 
     steps:
       - name: Checkout
@@ -226,6 +230,111 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary }}
           fail-build: false
           severity-cutoff: critical
+
+  chart-install:
+    name: Chart Testing (install)
+    needs: build
+    # Installs the image this PR built, not the appVersion tag: that tag only
+    # exists once a release creates it, so a PR bumping appVersion would
+    # otherwise fail to pull. Runs for every PR this workflow triggers on, so
+    # Dockerfile-only changes get an install test too. On main, Kargo's dev
+    # Stage is the install test.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.3.0
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.8.0
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.15.0
+
+      # Fork PRs can't push, so their image only exists locally: rebuild it
+      # (amd64, mostly from the build job's cache) and load it into kind.
+      - name: Set up Docker Buildx
+        if: needs.build.outputs.pushed != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image locally
+        if: needs.build.outputs.pushed != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: ct-local/akkoma:${{ needs.build.outputs.image-tag }}
+          cache-from: type=gha
+          build-args: |
+            AKKOMA_VERSION=${{ needs.build.outputs.akkoma-version }}
+
+      - name: Load image into kind
+        if: needs.build.outputs.pushed != 'true'
+        env:
+          IMAGE: ct-local/akkoma:${{ needs.build.outputs.image-tag }}
+        run: kind load docker-image "$IMAGE" --name chart-testing
+
+      - name: Select image under test
+        id: image
+        env:
+          PUSHED: ${{ needs.build.outputs.pushed }}
+          TAG: ${{ needs.build.outputs.image-tag }}
+        run: |
+          if [[ "$PUSHED" == "true" ]]; then
+            echo "repository=${REGISTRY}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "repository=ct-local/akkoma" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Install CloudNativePG operator
+        run: |
+          kubectl apply --server-side -f https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.0/cnpg-1.30.0.yaml
+          kubectl rollout status deployment -n cnpg-system cnpg-controller-manager --timeout=120s
+
+      - name: Install Prometheus Operator ServiceMonitor CRD
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.93.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+
+      - name: Deploy standalone PostgreSQL for external-db test
+        run: |
+          kubectl create namespace ct-akkoma
+          kubectl create secret generic pg-password --from-literal=password=ct-test-password -n ct-akkoma
+          kubectl create secret generic my-akkoma-secrets -n ct-akkoma \
+            --from-literal=secret-key-base=ct-test-secret-key-base-0123456789abcdefghijklmnopqrstuvwxyz0123456789ab \
+            --from-literal=signing-salt=ctsalt01 \
+            --from-literal=release-cookie=ct-test-release-cookie-0123456789abcdefghijklmnopqrstuvwxyz0123456789ab
+          kubectl run postgres-external --image=postgres:15-alpine -n ct-akkoma \
+            --env=POSTGRES_USER=akkoma --env=POSTGRES_PASSWORD=ct-test-password --env=POSTGRES_DB=akkoma \
+            --port=5432 --labels=app=postgres-external
+          kubectl expose pod postgres-external --name=postgres -n ct-akkoma --port=5432
+          kubectl wait --for=condition=ready pod/postgres-external -n ct-akkoma --timeout=120s
+          for _ in $(seq 1 30); do
+            kubectl exec -n ct-akkoma postgres-external -- pg_isready -U akkoma && break
+            sleep 2
+          done
+          kubectl exec -n ct-akkoma postgres-external -- psql -U akkoma -d akkoma -c \
+            'CREATE EXTENSION IF NOT EXISTS citext; CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+
+      - name: Run chart-testing (install)
+        env:
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          # --charts, not --target-branch: install even when only the
+          # Dockerfile changed. ct runs once per charts/akkoma/ci/*-values.yaml.
+          ct install --config ct.yaml \
+            --charts charts/akkoma \
+            --namespace ct-akkoma \
+            --helm-extra-set-args "--set=akkoma.domain=test.example.com --set=akkoma.adminEmail=admin@test.example.com --set=postgresql.external.host=postgres.ct-akkoma.svc.cluster.local --set=image.repository=${IMAGE_REPOSITORY} --set=image.tag=${IMAGE_TAG}"
 
   publish-dev-chart:
     name: Publish Dev Chart
