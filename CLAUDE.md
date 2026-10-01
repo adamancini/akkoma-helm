@@ -346,7 +346,8 @@ Re-running with the same inputs after a partial failure is safe: steps skip what
 
 - All PRs must pass `helm lint`
 - Template rendering must succeed
-- Consider chart-testing (ct) for automation
+- chart-testing is split: `ct lint` runs in `lint-test.yml`; `ct install` (once per `charts/akkoma/ci/*-values.yaml`, in kind) runs in `build-image.yml` after the image build and installs **the PR's own image** (`<branch-slug>-<ts>-<sha8>`; fork PRs build and `kind load` it locally). Never install the `appVersion` tag in PR tests: it only exists after a release.
+- After merge, Kargo's dev Stage is the install test against the real cluster, with a smoke test of the running instance as its verification (sedemo-platform `apps/team-ada/kargo/analysis-templates.yaml`)
 
 ### CI/CD
 
