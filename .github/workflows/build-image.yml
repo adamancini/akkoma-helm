@@ -28,7 +28,6 @@ on:
       - 'charts/**'
       - '.github/workflows/build-image.yml'
       - '.github/scripts/**'
-      - 'ct.yaml'
   pull_request:
     paths:
       - 'Dockerfile'
@@ -241,6 +240,8 @@ jobs:
     # Stage is the install test.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
