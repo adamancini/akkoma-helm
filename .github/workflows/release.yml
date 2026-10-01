@@ -1,9 +1,46 @@
 name: Release Helm Chart
 
+# Cuts chart release X.Y.Z from a commit on main that already has a dev-lane
+# chart (published by build-image.yml). Normally dispatched by Kargo's
+# `release` Stage (gha-dispatch-workflow); run it by hand as the escape hatch:
+#
+#   gh workflow run release.yml -f sha=<commit> -f version=0.6.3
+#
+# Kargo decides *whether* and *what* to release; this workflow only enforces
+# packaging invariants, so they hold no matter who dispatched it:
+#   - version is X.Y.Z, newer than every existing chart-v* tag, not yet published
+#   - the image is re-tagged main-<sha8> -> <appVersion>, never rebuilt, and an
+#     existing <appVersion> tag is never moved unless overwrite-image-tag is set
+#   - the release chart is the dev chart with only `version` and `image.tag`
+#     changed (verified by reversing the edit and diffing)
+# Order matters: image, then OCI chart, then git tag -- Kargo's release
+# Warehouse must never see a chart whose image doesn't exist yet.
+
 on:
-  push:
-    tags:
-      - 'chart-v*'
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit on main to release (8-40 hex chars); must have a published dev chart'
+        required: true
+        type: string
+      version:
+        description: 'Chart version to release, X.Y.Z (a leading v is stripped)'
+        required: true
+        type: string
+      overwrite-image-tag:
+        description: 'Move an existing <appVersion> image tag to this build (it is otherwise write-once)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-chart
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/akkoma
+  CHART_REPO: oci://ghcr.io/${{ github.repository_owner }}/charts
 
 jobs:
   release:
@@ -17,6 +54,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Configure Git
@@ -29,45 +67,146 @@ jobs:
         with:
           version: v4.3.0
 
-      - name: Package Helm Chart
-        run: |
-          helm package charts/akkoma --destination .deploy
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      - name: Extract version
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#chart-}" >> "$GITHUB_OUTPUT"
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate inputs
+        id: inputs
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+
+          version="${INPUT_VERSION#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "version '$INPUT_VERSION' is not X.Y.Z"
+          [[ "$INPUT_SHA" =~ ^[0-9a-f]{8,40}$ ]] || fail "sha '$INPUT_SHA' is not 8-40 lowercase hex chars"
+
+          sha=$(git rev-parse --verify --quiet "${INPUT_SHA}^{commit}") || fail "commit $INPUT_SHA not found"
+          git merge-base --is-ancestor "$sha" origin/main || fail "commit $sha is not on main"
+
+          tag="chart-v${version}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            fail "tag ${tag} already exists"
+          fi
+          latest=$(git tag -l 'chart-v*' | sed 's/^chart-v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
+          if [[ -n "$latest" && "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -n1)" != "$version" ]]; then
+            fail "version ${version} is not newer than the latest release ${latest}"
+          fi
+          if helm show chart "${CHART_REPO}/akkoma" --version "$version" >/dev/null 2>&1; then
+            fail "chart ${version} is already published to ${CHART_REPO}/akkoma"
+          fi
+
+          {
+            echo "version=${version}"
+            echo "sha=${sha}"
+            echo "tag=${tag}"
+            echo "dev-version=$(.github/scripts/dev-chart-version.sh "$sha")"
+            echo "dev-image-tag=main-${sha:0:8}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pull dev chart
+        id: dev
+        env:
+          DEV_VERSION: ${{ steps.inputs.outputs.dev-version }}
+          DEV_IMAGE_TAG: ${{ steps.inputs.outputs.dev-image-tag }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          helm pull "${CHART_REPO}/akkoma" --version "$DEV_VERSION" --untar --untardir dev \
+            || fail "dev chart ${DEV_VERSION} not found -- was this commit built on main by build-image.yml?"
+          pinned=$(yq '.image.tag' dev/akkoma/values.yaml)
+          [[ "$pinned" == "$DEV_IMAGE_TAG" ]] || fail "dev chart pins image '${pinned}', expected '${DEV_IMAGE_TAG}'"
+          app_version=$(yq '.appVersion' dev/akkoma/Chart.yaml)
+          [[ "$app_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "dev chart appVersion '${app_version}' is not vX.Y.Z"
+          echo "app-version=${app_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Re-tag image
+        env:
+          SRC: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.inputs.outputs.dev-image-tag }}
+          DST: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.dev.outputs.app-version }}
+          OVERWRITE: ${{ inputs.overwrite-image-tag }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          digest() { docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' | jq -r .digest; }
+
+          src_digest=$(digest "$SRC") || fail "image ${SRC} not found"
+          if dst_digest=$(digest "$DST" 2>/dev/null); then
+            if [[ "$dst_digest" == "$src_digest" ]]; then
+              echo "${DST} already points at ${src_digest}; nothing to do"
+              exit 0
+            fi
+            [[ "$OVERWRITE" == "true" ]] || fail "${DST} already exists at ${dst_digest}, not ${src_digest} (${SRC}). Release tags are write-once; re-run with overwrite-image-tag=true to move it deliberately, or bump appVersion."
+            echo "::warning::moving ${DST} from ${dst_digest} to ${src_digest}"
+          fi
+          docker buildx imagetools create --tag "$DST" "$SRC"
+
+      - name: Build release chart
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          DEV_VERSION: ${{ steps.inputs.outputs.dev-version }}
+          DEV_IMAGE_TAG: ${{ steps.inputs.outputs.dev-image-tag }}
+        run: |
+          cp -r dev/akkoma release-src
+          # Empty image.tag -> defaults to appVersion, i.e. the tag just created.
+          .github/scripts/set-chart-identity.sh release-src "$VERSION" ""
+          helm package release-src --destination .deploy
+
+          # Prove nothing but version and image.tag changed: undo both edits on
+          # the packaged result and it must be identical to the dev chart.
+          mkdir check
+          tar -xzf ".deploy/akkoma-${VERSION}.tgz" -C check
+          .github/scripts/set-chart-identity.sh check/akkoma "$DEV_VERSION" "$DEV_IMAGE_TAG"
+          diff -r dev/akkoma check/akkoma
+
+      - name: Push chart to OCI registry
+        run: helm push .deploy/*.tgz "$CHART_REPO"
+
+      - name: Tag release commit
+        env:
+          TAG: ${{ steps.inputs.outputs.tag }}
+          SHA: ${{ steps.inputs.outputs.sha }}
+          VERSION: ${{ steps.inputs.outputs.version }}
+          APP_VERSION: ${{ steps.dev.outputs.app-version }}
+        run: |
+          git tag -a "$TAG" "$SHA" -m "Chart ${VERSION} (Akkoma ${APP_VERSION})"
+          git push origin "$TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.inputs.outputs.tag }}
+          name: v${{ steps.inputs.outputs.version }}
           files: .deploy/*.tgz
           generate_release_notes: true
 
       - name: Publish to GitHub Pages (Chart Repository)
         run: |
-          # Clone gh-pages branch
           git clone --single-branch --branch gh-pages https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git gh-pages
-
-          # Copy new package
           cp .deploy/*.tgz gh-pages/
-
-          # Update index
           cd gh-pages
           helm repo index . --url https://${{ github.repository_owner }}.github.io/akkoma-helm
-
-          # Commit and push
           git add .
-          git commit -m "Release ${{ github.ref_name }}"
+          git commit -m "Release ${{ steps.inputs.outputs.tag }}"
           git push origin gh-pages
 
-      - name: Login to GitHub Container Registry (OCI)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push Chart to OCI Registry
+      - name: Summary
+        env:
+          VERSION: ${{ steps.inputs.outputs.version }}
+          SHA: ${{ steps.inputs.outputs.sha }}
+          APP_VERSION: ${{ steps.dev.outputs.app-version }}
+          DEV_VERSION: ${{ steps.inputs.outputs.dev-version }}
         run: |
-          helm push .deploy/*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          {
+            echo "### Released chart ${VERSION}"
+            echo ""
+            echo "- Commit: \`${SHA}\`"
+            echo "- Chart: \`${CHART_REPO}/akkoma:${VERSION}\` (repackaged from \`${DEV_VERSION}\`)"
+            echo "- Image: \`${REGISTRY}/${IMAGE_NAME}:${APP_VERSION}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

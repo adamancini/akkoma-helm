@@ -1,22 +1,40 @@
 name: Build and Push Container Image
 
+# Builds one image per commit, tagged <branch-slug>-<sha8> (main-<sha8> on
+# main), plus a moving <branch-slug> tag and `latest` on main. On main it also
+# publishes a dev-lane chart (0.0.0-main.<ts>.g<sha8>) that pins that exact
+# image -- Kargo's dev Stage tracks these. Release versions (chart X.Y.Z, image
+# vX.Y.Z) are only ever minted by release.yml.
+#
+# Image and chart share one trigger so every main commit that produces a
+# chart also produces its image; Kargo's freightCreationCriteria relies on
+# the two always coming in matched pairs.
+
 on:
   push:
     branches:
       - main
     paths:
       - 'Dockerfile'
+      - 'charts/**'
       - '.github/workflows/build-image.yml'
-      - 'charts/akkoma/Chart.yaml'
+      - '.github/scripts/**'
   pull_request:
     paths:
       - 'Dockerfile'
+      - 'charts/**'
       - '.github/workflows/build-image.yml'
-      - 'charts/akkoma/Chart.yaml'
+      - '.github/scripts/**'
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  # Superseded PR pushes can be dropped; every main commit needs its artifacts.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/akkoma
+  CHART_REPO: oci://ghcr.io/${{ github.repository_owner }}/charts
 
 jobs:
   build:
@@ -27,10 +45,16 @@ jobs:
       packages: write
       id-token: write
       security-events: write
+    outputs:
+      image-tag: ${{ steps.tags.outputs.primary }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # PR head, not the synthetic merge commit, so the sha in the tag is
+          # one that exists on the branch.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -49,8 +73,32 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+      - name: Compute image tags
+        id: tags
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            slug=$(printf '%s' "$HEAD_REF" | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9.-]+/-/g' | cut -c1-100 | sed -E 's/^[.-]+//; s/[.-]+$//')
+          else
+            slug=main
+          fi
+          if [[ -z "$slug" ]]; then
+            echo "ERROR: could not derive an image tag from branch '$HEAD_REF'" >&2
+            exit 1
+          fi
+          {
+            echo "primary=${slug}-${sha:0:8}"
+            echo "slug=${slug}"
+            # Fork PRs get no write token; build them without pushing.
+            echo "push=${SAME_REPO}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
+        if: steps.tags.outputs.push == 'true'
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -60,20 +108,21 @@ jobs:
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: 'true'
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
+            type=raw,value=${{ steps.tags.outputs.primary }}
+            type=raw,value=${{ steps.tags.outputs.slug }}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.akkoma.outputs.version }},enable=${{ github.event_name != 'pull_request' }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ steps.tags.outputs.push == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -82,23 +131,66 @@ jobs:
             AKKOMA_VERSION=${{ steps.akkoma.outputs.version }}
 
       - name: Run Trivy vulnerability scanner
-        if: github.event_name != 'pull_request'
+        if: steps.tags.outputs.push == 'true'
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.akkoma.outputs.version }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary }}
           format: 'sarif'
           output: 'trivy-image-results.sarif'
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
-        if: always() && github.event_name != 'pull_request'
+        if: always() && steps.tags.outputs.push == 'true'
         with:
           sarif_file: 'trivy-image-results.sarif'
 
       - name: Run Grype vulnerability scanner
         uses: anchore/scan-action@v7
-        if: github.event_name != 'pull_request'
+        if: steps.tags.outputs.push == 'true'
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.akkoma.outputs.version }}
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary }}
           fail-build: false
           severity-cutoff: critical
+
+  publish-dev-chart:
+    name: Publish Dev Chart
+    needs: build
+    # Pushed after the image so Kargo never sees a chart whose image is missing.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.3.0
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package and push dev chart
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+        run: |
+          version=$(.github/scripts/dev-chart-version.sh HEAD)
+          work=$(mktemp -d)
+          cp -r charts/akkoma "$work/akkoma"
+          .github/scripts/set-chart-identity.sh "$work/akkoma" "$version" "$IMAGE_TAG"
+          helm package "$work/akkoma" --destination "$work/out"
+          helm push "$work/out/akkoma-${version}.tgz" "$CHART_REPO"
+          {
+            echo "### Dev chart published"
+            echo ""
+            echo "- Chart: \`${CHART_REPO}/akkoma:${version}\`"
+            echo "- Image: \`${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

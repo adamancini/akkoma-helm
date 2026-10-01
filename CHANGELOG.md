@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Releases are no longer cut by pushing a `chart-v*` tag. `release.yml` is now `workflow_dispatch`-only (normally triggered by Kargo, or `gh workflow run release.yml -f sha=<commit> -f version=X.Y.Z`); it tags the commit `chart-vX.Y.Z` itself. The release version is supplied at release time; `version` in `Chart.yaml` is no longer bumped per change.
+- The image's `vX.Y.Z` (Akkoma `appVersion`) tag is now created only when a chart release pins it, by re-tagging the already-built `main-<sha8>` image, and is write-once. Every build on `main` is tagged `main-<sha8>`, `main` and `latest`; same-repo PRs are now pushed as `<branch-slug>-<sha8>` and `<branch-slug>`.
+- Every commit on `main` publishes a dev chart `0.0.0-main.<timestamp>.g<sha8>` pinning its `main-<sha8>` image. These are prereleases, so `helm install` / `helm pull` without `--version` (or with any constraint lacking a prerelease part, e.g. `>=0.6.0`) never selects them.
+
 ## [0.6.2] - 2026-08-26
 
 ### Added
