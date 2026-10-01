@@ -1,7 +1,8 @@
 name: Build and Push Container Image
 
-# Builds one image per commit, tagged <branch-slug>-<sha8> (main-<sha8> on
-# main), plus a moving <branch-slug> tag and `latest` on main. On main it also
+# Builds one image per commit, tagged <branch-slug>-<ts>-<sha8> (main-<ts>-<sha8>
+# on main; see .github/scripts/build-ids.sh), plus a moving <branch-slug> tag
+# and `latest` on main. On main it also
 # publishes a dev-lane chart (0.0.0-main.<ts>.g<sha8>) that pins that exact
 # image -- Kargo's dev Stage tracks these. Release versions (chart X.Y.Z, image
 # vX.Y.Z) are only ever minted by release.yml.
@@ -90,14 +91,13 @@ jobs:
           SAME_REPO: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
           AKKOMA_VERSION: ${{ steps.akkoma.outputs.version }}
         run: |
-          sha=$(git rev-parse HEAD)
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             # DNS-label style ([a-z0-9-], <=50 chars), close to Argo CD's
             # PR generator branch_slug, so preview tooling can derive it too.
             slug=$(printf '%s' "$HEAD_REF" | tr '[:upper:]' '[:lower:]' \
               | sed -E 's/[^a-z0-9]+/-/g; s/^-+//' | cut -c1-50 | sed -E 's/-+$//')
             # Never let a branch name produce a tag that means something
-            # else: main-<sha8>/main/latest (dev lane), a bare number, or
+            # else: main-*/main/latest (dev lane), a bare number, or
             # inputs-<hash> (content address).
             if [[ "$slug" =~ ^(main|latest|[0-9]+|inputs(-.*)?)$ ]]; then
               slug="branch-${slug}"
@@ -113,8 +113,10 @@ jobs:
           # copies nothing from the build context today; if it ever does, add
           # those paths here or images will be wrongly reused.
           inputs=$({ cat Dockerfile; printf 'AKKOMA_VERSION=%s\n' "$AKKOMA_VERSION"; } | sha256sum | cut -c1-16)
+          primary=$(.github/scripts/build-ids.sh HEAD "$slug" | sed -n 's/^image-tag=//p')
+          [[ -n "$primary" ]]
           {
-            echo "primary=${slug}-${sha:0:8}"
+            echo "primary=${primary}"
             echo "slug=${slug}"
             echo "inputs=inputs-${inputs}"
             # Fork PRs get no write token; build them without pushing.
@@ -255,7 +257,7 @@ jobs:
         env:
           IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
         run: |
-          version=$(.github/scripts/dev-chart-version.sh HEAD)
+          version=$(.github/scripts/build-ids.sh HEAD | sed -n 's/^chart-version=//p')
           work=$(mktemp -d)
           cp -r charts/akkoma "$work/akkoma"
           .github/scripts/set-chart-identity.sh "$work/akkoma" "$version" "$IMAGE_TAG"
