@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bundled Garage upgraded from `v1.3.1` to `v2.4.1`. Garage v2 reworked its admin API, so the `garage-setup` Job now uses the `/v2/` endpoints; the `/v1/` ones are deprecated and only translated internally. Existing v1 installs upgrade in place: on restart Garage migrates its metadata, and the Job reuses the existing key and bucket (tested v1.3.1 → v2.4.1 on the same volumes). Upstream recommends a metadata snapshot before upgrading. See the Garage section of the README.
+- Garage's liveness and readiness probes are now TCP checks on the admin port. Since Garage v2, `/health` returns 503 until a layout exists. An HTTP readiness probe would keep the pod out of its Service, so the setup Job, which assigns the layout through that Service, could never reach it.
+
+### Fixed
+
+- The `garage-setup` Job runs on every install, upgrade and Argo CD sync. When the `akkoma` key already existed, it read the key back without `showSecretKey` and stored an **empty secret access key** in Akkoma's S3 Secret, which broke media uploads after the next pod restart. It now requests the secret and fails rather than store empty credentials.
+- The `garage-setup` Job only restarted Akkoma after *creating* the S3 Secret. An attempt that created it and then failed left later retries on the update path, so Akkoma never picked up its credentials. It now restarts Akkoma whenever the stored credentials change.
+- The `garage-setup` Job builds the Secret's JSON from base64 that BusyBox wraps at 76 columns. Line breaks are now stripped, and failed Kubernetes API calls print the API's response instead of failing silently with curl exit code 22.
+
 - Bumped `appVersion` to `v3.20.1` (upstream "2026.09 security release": updated `mint`, Masto API account `verified_at` fix, field-URL verification fixes). No update notes or migrations upstream; no chart-side changes needed. Upstream published this release's build only under the floating `stable` path, so the Dockerfile downloads it from there and pins each architecture's archive by SHA-256. The build fails if upstream replaces the archive. Any `vX.Y.Z` build now also checks that the downloaded release reports that version.
 
 ### Fixed

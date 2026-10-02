@@ -71,92 +71,103 @@ spec:
           echo "Layout capacity: ${CAPACITY_BYTES} bytes (from persistence.data.size=${DATA_SIZE})"
           CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
+          # Garage admin API v2 (Garage >= 2.0; the v1 endpoints are deprecated).
+          api() { curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "$@"; }
+          api_post() { api -X POST -H "Content-Type: application/json" -d "$2" "${GARAGE_ADMIN}/v2/$1"; }
+          health() { curl -s -o /dev/null -w "%{http_code}" "${GARAGE_ADMIN}/health" || true; }
+
+          # Wait for the admin API to answer at all. /health itself returns 503
+          # until a layout exists (Garage v2), and assigning the layout is this
+          # Job's job, so waiting for a 2xx here would never finish.
           echo "Waiting for Garage admin API..."
-          until curl -sf "${GARAGE_ADMIN}/health" > /dev/null 2>&1; do
-            echo "Garage not ready, waiting..."
+          until [ "$(health)" != "000" ]; do
+            echo "Garage not reachable yet, waiting..."
             sleep 3
           done
-          echo "Garage is ready!"
+          echo "Garage admin API is up (health: $(health))"
 
-          # Get cluster status and assign layout if needed
+          # Assign the layout if needed
           echo "Checking cluster layout..."
-          STATUS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/status")
-          NODE_ID=$(echo "${STATUS}" | jq -r '.node')
-
-          ROLES=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.roles | length')
+          NODE_ID=$(api "${GARAGE_ADMIN}/v2/GetNodeInfo?node=self" | jq -r '.success | keys[0]')
+          ROLES=$(api "${GARAGE_ADMIN}/v2/GetClusterLayout" | jq -r '.roles | length')
 
           if [ "${ROLES}" -eq 0 ]; then
-            echo "Assigning cluster layout..."
-            curl -sf -X POST \
-              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": ${CAPACITY_BYTES}, \"tags\": [\"akkoma\"]}]" \
-              "${GARAGE_ADMIN}/v1/layout"
-
-            echo "Applying layout..."
-            CURRENT_VERSION=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/layout" | jq -r '.version')
-            echo "Current layout version: ${CURRENT_VERSION}"
-            APPLY_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST \
-              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"version\": $((CURRENT_VERSION + 1))}" \
-              "${GARAGE_ADMIN}/v1/layout/apply")
-            echo "${APPLY_RESPONSE}"
-            case "${APPLY_RESPONSE}" in
-              *HTTP_STATUS:2??*) echo "Layout applied!" ;;
-              *) echo "Layout apply failed"; exit 1 ;;
-            esac
+            echo "Assigning cluster layout to node ${NODE_ID}..."
+            api_post UpdateClusterLayout \
+              "{\"roles\": [{\"id\": \"${NODE_ID}\", \"zone\": \"dc1\", \"capacity\": ${CAPACITY_BYTES}, \"tags\": [\"akkoma\"]}]}" > /dev/null
+            CURRENT_VERSION=$(api "${GARAGE_ADMIN}/v2/GetClusterLayout" | jq -r '.version')
+            echo "Applying layout version $((CURRENT_VERSION + 1))..."
+            api_post ApplyClusterLayout "{\"version\": $((CURRENT_VERSION + 1))}" > /dev/null \
+              || { echo "Layout apply failed"; exit 1; }
+            echo "Layout applied!"
           else
             echo "Layout already configured (${ROLES} role(s))"
           fi
 
-          # Check if key already exists
+          # Keys and buckets need quorum: wait until the cluster is healthy.
+          echo "Waiting for the cluster to become healthy..."
+          for _ in $(seq 1 60); do
+            [ "$(health)" = "200" ] && break
+            sleep 2
+          done
+          [ "$(health)" = "200" ] || { echo "Garage cluster not healthy (health: $(health))"; exit 1; }
+
+          # Reuse the access key if it exists. showSecretKey=true matters: without
+          # it the secret comes back empty, and this Job (it re-runs on every
+          # upgrade/sync) would store an empty secret for Akkoma.
           echo "Checking for existing S3 credentials..."
-          EXISTING_KEYS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/key" | jq -r '.[].name')
-          if echo "${EXISTING_KEYS}" | grep -q "^akkoma$"; then
+          if api "${GARAGE_ADMIN}/v2/ListKeys" | jq -e '.[] | select(.name == "akkoma")' > /dev/null; then
             echo "Key 'akkoma' already exists"
-            KEY_INFO=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/key?search=akkoma")
-            ACCESS_KEY=$(echo "${KEY_INFO}" | jq -r '.accessKeyId')
-            SECRET_KEY=$(echo "${KEY_INFO}" | jq -r '.secretAccessKey')
+            KEY_INFO=$(api "${GARAGE_ADMIN}/v2/GetKeyInfo?search=akkoma&showSecretKey=true")
           else
             echo "Creating access key..."
-            KEY_INFO=$(curl -sf -X POST \
-              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '{"name": "akkoma"}' \
-              "${GARAGE_ADMIN}/v1/key")
-            ACCESS_KEY=$(echo "${KEY_INFO}" | jq -r '.accessKeyId')
-            SECRET_KEY=$(echo "${KEY_INFO}" | jq -r '.secretAccessKey')
-            echo "Key created: ${ACCESS_KEY}"
+            KEY_INFO=$(api_post CreateKey '{"name": "akkoma"}')
           fi
+          ACCESS_KEY=$(echo "${KEY_INFO}" | jq -r '.accessKeyId // empty')
+          SECRET_KEY=$(echo "${KEY_INFO}" | jq -r '.secretAccessKey // empty')
+          if [ -z "${ACCESS_KEY}" ] || [ -z "${SECRET_KEY}" ]; then
+            echo "ERROR: could not read credentials for key 'akkoma'"
+            exit 1
+          fi
+          echo "Using access key ${ACCESS_KEY}"
 
           # Create bucket if it doesn't exist
           echo "Checking bucket..."
-          BUCKETS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v1/bucket" | jq -r '.[].globalAliases[]?' 2>/dev/null || echo "")
-          if echo "${BUCKETS}" | grep -q "^${BUCKET_NAME}$"; then
+          if api "${GARAGE_ADMIN}/v2/ListBuckets" | jq -e --arg b "${BUCKET_NAME}" '.[] | select(.globalAliases | index($b))' > /dev/null; then
             echo "Bucket '${BUCKET_NAME}' already exists"
           else
             echo "Creating bucket '${BUCKET_NAME}'..."
-            BUCKET_RESULT=$(curl -sf -X POST \
-              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"globalAlias\": \"${BUCKET_NAME}\"}" \
-              "${GARAGE_ADMIN}/v1/bucket")
-            BUCKET_ID=$(echo "${BUCKET_RESULT}" | jq -r '.id')
+            BUCKET_ID=$(api_post CreateBucket "{\"globalAlias\": \"${BUCKET_NAME}\"}" | jq -r '.id')
 
             echo "Granting permissions..."
-            curl -sf -X POST \
-              -H "Authorization: Bearer ${ADMIN_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${ACCESS_KEY}\", \"permissions\": {\"read\": true, \"write\": true, \"owner\": true}}" \
-              "${GARAGE_ADMIN}/v1/bucket/allow"
+            api_post AllowBucketKey \
+              "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${ACCESS_KEY}\", \"permissions\": {\"read\": true, \"write\": true, \"owner\": true}}" > /dev/null
             echo "Bucket created and permissions granted!"
           fi
 
-          # Create or update the S3 credentials Secret via Kubernetes API
+          # Create or update the S3 credentials Secret via Kubernetes API.
+          # kube() prints the response body and returns non-zero on any HTTP
+          # error, so a rejected request says why in the Job log.
+          kube() {
+            method=$1; path=$2; shift 2
+            out=$(curl -s --cacert "${CA_CERT}" -X "${method}" \
+              -H "Authorization: Bearer ${SA_TOKEN}" "$@" \
+              -w "\n%{http_code}" "${KUBE_API}${path}") || { echo "${method} ${path}: request failed"; return 1; }
+            KUBE_CODE=$(printf %s "${out}" | tail -n 1)
+            KUBE_BODY=$(printf %s "${out}" | sed '$d')
+            case "${KUBE_CODE}" in
+              2??) return 0 ;;
+              *) return 2 ;;
+            esac
+          }
+          kube_fail() { echo "ERROR: $1 (HTTP ${KUBE_CODE}): ${KUBE_BODY}"; exit 1; }
+
           echo "Storing S3 credentials in Secret '${SECRET_NAME}'..."
-          ACCESS_KEY_B64=$(echo -n "${ACCESS_KEY}" | base64)
-          SECRET_KEY_B64=$(echo -n "${SECRET_KEY}" | base64)
+          # tr -d: BusyBox base64 wraps at 76 columns, which would put a newline
+          # inside the JSON string below.
+          ACCESS_KEY_B64=$(printf %s "${ACCESS_KEY}" | base64 | tr -d '\n')
+          SECRET_KEY_B64=$(printf %s "${SECRET_KEY}" | base64 | tr -d '\n')
+          SECRETS_PATH="/api/v1/namespaces/${NAMESPACE}/secrets"
 
           SECRET_JSON=$(cat <<HEREDOC
           {
@@ -178,42 +189,42 @@ spec:
           HEREDOC
           )
 
-          # Try to get existing secret
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            --cacert "${CA_CERT}" \
-            -H "Authorization: Bearer ${SA_TOKEN}" \
-            "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets/${SECRET_NAME}")
-
-          if [ "${HTTP_CODE}" = "200" ]; then
+          # Did the stored credentials change? Restart Akkoma only if so. This
+          # also covers a previous attempt that wrote the Secret but died before
+          # restarting the Deployment.
+          CHANGED=true
+          if kube GET "${SECRETS_PATH}/${SECRET_NAME}"; then
+            CURRENT=$(printf %s "${KUBE_BODY}" | jq -r '(.data["access-key-id"] // "") + "/" + (.data["secret-access-key"] // "")')
+            [ "${CURRENT}" = "${ACCESS_KEY_B64}/${SECRET_KEY_B64}" ] && CHANGED=false
             echo "Updating existing Secret..."
-            curl -sf --cacert "${CA_CERT}" \
-              -X PUT \
-              -H "Authorization: Bearer ${SA_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "${SECRET_JSON}" \
-              "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets/${SECRET_NAME}" > /dev/null
-          else
+            kube PUT "${SECRETS_PATH}/${SECRET_NAME}" -H "Content-Type: application/json" -d "${SECRET_JSON}" \
+              || kube_fail "updating Secret ${SECRET_NAME}"
+          elif [ "${KUBE_CODE}" = "404" ]; then
             echo "Creating Secret..."
-            curl -sf --cacert "${CA_CERT}" \
-              -X POST \
-              -H "Authorization: Bearer ${SA_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "${SECRET_JSON}" \
-              "${KUBE_API}/api/v1/namespaces/${NAMESPACE}/secrets" > /dev/null
+            if ! kube POST "${SECRETS_PATH}" -H "Content-Type: application/json" -d "${SECRET_JSON}"; then
+              # Created concurrently (e.g. by an earlier attempt): update instead.
+              [ "${KUBE_CODE}" = "409" ] || kube_fail "creating Secret ${SECRET_NAME}"
+              echo "Secret already exists; updating..."
+              kube PUT "${SECRETS_PATH}/${SECRET_NAME}" -H "Content-Type: application/json" -d "${SECRET_JSON}" \
+                || kube_fail "updating Secret ${SECRET_NAME}"
+            fi
+          else
+            kube_fail "reading Secret ${SECRET_NAME}"
+          fi
 
+          if [ "${CHANGED}" = "true" ]; then
             # The akkoma Deployment's S3 env vars are optional so it can reach
             # Ready without this secret (helm install --wait would otherwise
             # deadlock: it blocks on Deployment readiness before running this
-            # post-install hook). Restart it now so it picks up real creds.
+            # post-install hook). Restart it so it picks up the credentials.
             echo "Restarting akkoma Deployment to pick up S3 credentials..."
             DEPLOYMENT_NAME="{{ include "akkoma.fullname" . }}"
             RESTART_PATCH="{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
-            curl -sf --cacert "${CA_CERT}" \
-              -X PATCH \
-              -H "Authorization: Bearer ${SA_TOKEN}" \
-              -H "Content-Type: application/strategic-merge-patch+json" \
-              -d "${RESTART_PATCH}" \
-              "${KUBE_API}/apis/apps/v1/namespaces/${NAMESPACE}/deployments/${DEPLOYMENT_NAME}" > /dev/null
+            kube PATCH "/apis/apps/v1/namespaces/${NAMESPACE}/deployments/${DEPLOYMENT_NAME}" \
+              -H "Content-Type: application/strategic-merge-patch+json" -d "${RESTART_PATCH}" \
+              || kube_fail "restarting Deployment ${DEPLOYMENT_NAME}"
+          else
+            echo "Credentials unchanged; not restarting akkoma"
           fi
 
           echo "Garage setup complete!"

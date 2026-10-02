@@ -3,4 +3,4 @@ name: garage
 description: Vendored Garage S3-compatible object storage for Akkoma
 type: application
 version: 0.1.0
-appVersion: "v1.0.1"
+appVersion: "v2.4.1"

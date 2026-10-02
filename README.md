@@ -114,6 +114,8 @@ kubectl port-forward svc/akkoma 4000:4000
 | `garage.persistence.meta.size` | Garage metadata volume | `1Gi` |
 | `garage.persistence.data.size` | Garage data volume | `50Gi` |
 
+The bundled Garage is v2.x. Existing installs on Garage v1.x upgrade in place: the StatefulSet restarts on v2 and Garage migrates its metadata on start. The setup Job then reuses the existing access key and bucket, so media and credentials carry over. Garage's own [v1 → v2 migration guide](https://garagehq.deuxfleurs.fr/documentation/working-documents/migration-2/) still recommends a metadata snapshot first (`garage meta snapshot --all`). Take one if the instance holds media you care about.
+
 ### PostgreSQL
 
 | Parameter | Description | Default |
@@ -647,6 +649,7 @@ kubectl logs job/akkoma-garage-setup
 Common issues:
 - Garage pod not ready (check `kubectl get pods -l app.kubernetes.io/name=garage`)
 - Admin API unreachable (check Garage service and port 3903)
+- `Garage cluster not healthy`: Garage's `/health` returns 503 until the Job has assigned the storage layout, and the Job waits for 200 after applying it. If it times out, check the Garage pod logs, for example for a layout capacity larger than the data volume.
 
 ## Development
 
