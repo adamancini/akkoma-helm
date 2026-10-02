@@ -7,13 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-02
+
 ### Added
 
 - `image.digest` (optional, `sha256:<64 hex>`). When set, the Akkoma image is referenced as `repository:tag@digest` in the server, `db-migrate` and `media-prune` containers. That pins the exact image even if the tag later moves. Moving `vX.Y.Z` after a base-image rebuild otherwise left nodes running their cached old image under `pullPolicy: IfNotPresent`. Kargo sets it from the Freight's digest, so each stage runs the image its Freight recorded. Rendering is unchanged when it's empty; a malformed value fails the render.
 
+## [0.8.1] - 2026-10-02
+
 ### Changed
 
 - The Dockerfile pins the `alpine:3.24` base image by digest in both stages, so Renovate opens a PR whenever Alpine republishes `3.24` (e.g. with security fixes). Before, content-addressed images were only rebuilt when the Dockerfile or Akkoma version changed, so Alpine fixes never reached them. Merging a digest bump rebuilds the image under the same Akkoma version; releasing that image needs `overwrite-image-tag=true` (see CLAUDE.md).
+
+## [0.8.0] - 2026-10-02
+
+### Changed
+
 - Bundled Garage upgraded from `v1.3.1` to `v2.4.1`. Garage v2 reworked its admin API, so the `garage-setup` Job now uses the `/v2/` endpoints; the `/v1/` ones are deprecated and only translated internally. Existing v1 installs upgrade in place: on restart Garage migrates its metadata, and the Job reuses the existing key and bucket (tested v1.3.1 → v2.4.1 on the same volumes). Upstream recommends a metadata snapshot before upgrading. See the Garage section of the README.
 - Garage's liveness and readiness probes are now TCP checks on the admin port. Since Garage v2, `/health` returns 503 until a layout exists. An HTTP readiness probe would keep the pod out of its Service, so the setup Job, which assigns the layout through that Service, could never reach it.
 
@@ -23,17 +32,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `garage-setup` Job only restarted Akkoma after *creating* the S3 Secret. An attempt that created it and then failed left later retries on the update path, so Akkoma never picked up its credentials. It now restarts Akkoma whenever the stored credentials change.
 - The `garage-setup` Job builds the Secret's JSON from base64 that BusyBox wraps at 76 columns. Line breaks are now stripped, and failed Kubernetes API calls print the API's response instead of failing silently with curl exit code 22.
 
+## [0.7.3] - 2026-10-02
+
+### Changed
+
+- Fixed comment indentation under `ingress.annotations` in `values.yaml`. No functional change.
+
+## [0.7.2] - 2026-10-02
+
+### Changed
+
 - Bumped `appVersion` to `v3.20.1` (upstream "2026.09 security release": updated `mint`, Masto API account `verified_at` fix, field-URL verification fixes). No update notes or migrations upstream; no chart-side changes needed. Upstream published this release's build only under the floating `stable` path, so the Dockerfile downloads it from there and pins each architecture's archive by SHA-256. The build fails if upstream replaces the archive. Any `vX.Y.Z` build now also checks that the downloaded release reports that version.
+
+## [0.7.1] - 2026-10-02
 
 ### Fixed
 
 - Akkoma's Erlang VM was OOM-killed at boot on nodes whose container runtime sets a huge open-file limit, such as containerd 2.x and recent kind node images (`kindest/node` v1.37), where `ulimit -n` is about 1e9. The VM sizes its port table from that limit. The server, `db-migrate` and `media-prune` containers now set `ERL_MAX_PORTS` from the new `akkoma.erlMaxPorts` value (default `65536`; `""` leaves it unset). Reproduced under a 2 GiB memory limit: with `nofile=1073741816` the VM is killed; with `ERL_MAX_PORTS=65536` it starts.
 
+## [0.7.0] - 2026-10-01
+
+### Changed
+
+- Per-commit image tags now include the UTC commit timestamp: `main-<ts>-<sha8>` on `main` and `<branch-slug>-<ts>-<sha8>` for PRs, replacing `main-<sha8>`. Images reused through content addressing share a build time, so Kargo could not order them by build date. With the timestamp in the tag they sort in commit order, and dev chart versions (`0.0.0-main.<ts>.g<sha8>`) use the same timestamp.
+
+## [0.6.3] - 2026-10-01
+
 ### Changed
 
 - Releases are no longer cut by pushing a `chart-v*` tag. `release.yml` is now `workflow_dispatch`-only (normally triggered by Kargo, or `gh workflow run release.yml -f sha=<commit> -f version=X.Y.Z`); it tags the commit `chart-vX.Y.Z` itself. The release version is supplied at release time; `version` in `Chart.yaml` is no longer bumped per change.
-- The image's `vX.Y.Z` (Akkoma `appVersion`) tag is now created only when a chart release pins it, by re-tagging the already-built `main-<ts>-<sha8>` image, and is write-once. Every build on `main` is tagged `main-<ts>-<sha8>`, `main` and `latest`; same-repo PRs are now pushed as `<branch-slug>-<ts>-<sha8>` and `<branch-slug>`. Images are reused by content (`inputs-<hash>` of the Dockerfile + Akkoma version) rather than rebuilt on every commit, so chart-only changes keep the same image digest.
-- Every commit on `main` publishes a dev chart `0.0.0-main.<timestamp>.g<sha8>` pinning its `main-<ts>-<sha8>` image. These are prereleases, so `helm install` / `helm pull` without `--version` (or with any constraint lacking a prerelease part, e.g. `>=0.6.0`) never selects them.
+- The image's `vX.Y.Z` (Akkoma `appVersion`) tag is now created only when a chart release pins it, by re-tagging the already-built `main-<sha8>` image, and is write-once. Every build on `main` is tagged `main-<sha8>`, `main` and `latest`; same-repo PRs are now pushed as `<branch-slug>-<sha8>` and `<branch-slug>`. Images are reused by content (`inputs-<hash>` of the Dockerfile + Akkoma version) rather than rebuilt on every commit, so chart-only changes keep the same image digest.
+- Every commit on `main` publishes a dev chart `0.0.0-main.<timestamp>.g<sha8>` pinning its `main-<sha8>` image. These are prereleases, so `helm install` / `helm pull` without `--version` (or with any constraint lacking a prerelease part, e.g. `>=0.6.0`) never selects them.
 
 ## [0.6.2] - 2026-08-26
 
