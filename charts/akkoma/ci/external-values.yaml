@@ -1,0 +1,25 @@
+# CI test: external PostgreSQL plus externally managed app secrets.
+# Install-tested: the CI job creates the `pg-password` and `my-akkoma-secrets`
+# Secrets and a standalone Postgres at postgres.ct-akkoma.svc before
+# installing (it also overrides postgresql.external.host to that address).
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+postgresql:
+  external:
+    enabled: true
+    host: postgres.example.com
+    port: 5432
+    database: akkoma
+    username: akkoma
+    passwordSecret: pg-password
+    passwordKey: password
+
+externalSecret:
+  enabled: true
+  name: my-akkoma-secrets
+  keys:
+    secretKeyBase: secret-key-base
+    signingSalt: signing-salt
+    releaseCookie: release-cookie
