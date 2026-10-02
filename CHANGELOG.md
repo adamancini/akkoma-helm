@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Dockerfile pins the `alpine:3.24` base image by digest in both stages, so Renovate opens a PR whenever Alpine republishes `3.24` (e.g. with security fixes). Before, content-addressed images were only rebuilt when the Dockerfile or Akkoma version changed, so Alpine fixes never reached them. Merging a digest bump rebuilds the image under the same Akkoma version; releasing that image needs `overwrite-image-tag=true` (see CLAUDE.md).
 - Bundled Garage upgraded from `v1.3.1` to `v2.4.1`. Garage v2 reworked its admin API, so the `garage-setup` Job now uses the `/v2/` endpoints; the `/v1/` ones are deprecated and only translated internally. Existing v1 installs upgrade in place: on restart Garage migrates its metadata, and the Job reuses the existing key and bucket (tested v1.3.1 → v2.4.1 on the same volumes). Upstream recommends a metadata snapshot before upgrading. See the Garage section of the README.
 - Garage's liveness and readiness probes are now TCP checks on the admin port. Since Garage v2, `/health` returns 503 until a layout exists. An HTTP readiness probe would keep the pod out of its Service, so the setup Job, which assigns the layout through that Service, could never reach it.
 

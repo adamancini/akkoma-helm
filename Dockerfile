@@ -23,7 +23,11 @@
 # ============================================================================
 # Stage 1: Downloader - Download pre-built OTP release
 # ============================================================================
-FROM alpine:3.24 AS downloader
+# Base image pinned by digest (both stages), so the image only changes when
+# this line changes: Renovate opens a PR when alpine:3.24 is rebuilt (e.g.
+# for security fixes). A digest bump rebuilds the image under the same Akkoma
+# version -- see "Base image updates" in CLAUDE.md for releasing it.
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS downloader
 
 # Install download dependencies
 RUN apk add --no-cache \
@@ -103,7 +107,7 @@ RUN test -d /tmp/release || \
 # ============================================================================
 # Stage 2: Runtime - Minimal Alpine-based image
 # ============================================================================
-FROM alpine:3.24
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
 # Install runtime dependencies
 # Based on: https://docs.akkoma.dev/stable/installation/otp_en/
