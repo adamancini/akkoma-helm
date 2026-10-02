@@ -49,15 +49,18 @@ spec:
         - name: admin
           containerPort: 3903
           protocol: TCP
+        # TCP, not /health: since Garage v2, /health returns 503 until the
+        # cluster has a layout, and the layout is assigned by Akkoma's
+        # garage-setup Job through this pod's Service -- an HTTP readiness
+        # probe would keep the pod out of the Service forever, and an HTTP
+        # liveness probe would restart it in a loop.
         livenessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: admin
           initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: admin
           initialDelaySeconds: 5
           periodSeconds: 10
