@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `image.digest` (optional, `sha256:<64 hex>`). When set, the Akkoma image is referenced as `repository:tag@digest` in the server, `db-migrate` and `media-prune` containers. That pins the exact image even if the tag later moves. Moving `vX.Y.Z` after a base-image rebuild otherwise left nodes running their cached old image under `pullPolicy: IfNotPresent`. Kargo sets it from the Freight's digest, so each stage runs the image its Freight recorded. Rendering is unchanged when it's empty; a malformed value fails the render.
+
 ### Changed
 
 - The Dockerfile pins the `alpine:3.24` base image by digest in both stages, so Renovate opens a PR whenever Alpine republishes `3.24` (e.g. with security fixes). Before, content-addressed images were only rebuilt when the Dockerfile or Akkoma version changed, so Alpine fixes never reached them. Merging a digest bump rebuilds the image under the same Akkoma version; releasing that image needs `overwrite-image-tag=true` (see CLAUDE.md).
