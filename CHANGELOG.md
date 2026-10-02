@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The `garage-setup` Job runs on every install, upgrade and Argo CD sync. When the `akkoma` key already existed, it read the key back without `showSecretKey` and stored an **empty secret access key** in Akkoma's S3 Secret, which broke media uploads after the next pod restart. It now requests the secret and fails rather than store empty credentials.
+- The `garage-setup` Job only restarted Akkoma after *creating* the S3 Secret. An attempt that created it and then failed left later retries on the update path, so Akkoma never picked up its credentials. It now restarts Akkoma whenever the stored credentials change.
+- The `garage-setup` Job builds the Secret's JSON from base64 that BusyBox wraps at 76 columns. Line breaks are now stripped, and failed Kubernetes API calls print the API's response instead of failing silently with curl exit code 22.
 
 - Bumped `appVersion` to `v3.20.1` (upstream "2026.09 security release": updated `mint`, Masto API account `verified_at` fix, field-URL verification fixes). No update notes or migrations upstream; no chart-side changes needed. Upstream published this release's build only under the floating `stable` path, so the Dockerfile downloads it from there and pins each architecture's archive by SHA-256. The build fails if upstream replaces the archive. Any `vX.Y.Z` build now also checks that the downloaded release reports that version.
 
