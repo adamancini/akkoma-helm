@@ -18,6 +18,15 @@ akkoma:
   # Instance name (defaults to domain if not set)
   instanceName: ""
 
+  # Caps the Erlang VM's port table (ERL_MAX_PORTS) in every container that
+  # boots Akkoma (server, db-migrate, media-prune). Without it the VM sizes
+  # the table from the open-file limit, and on containerd 2.x nodes (e.g.
+  # kind >= v0.30, kindest/node v1.37) that limit is ~1e9: the VM tries to
+  # allocate gigabytes at boot and is OOM-killed within a second. Each open
+  # socket or file uses one port, so 65536 leaves ample headroom for
+  # federation. Set to "" to leave ERL_MAX_PORTS unset.
+  erlMaxPorts: 65536
+
 # Image configuration
 image:
   repository: ghcr.io/adamancini/akkoma

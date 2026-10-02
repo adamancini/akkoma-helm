@@ -1,4 +1,5 @@
-# chart-testing (ct) configuration, used by .github/workflows/lint-test.yml.
+# chart-testing (ct) configuration: `ct lint` in .github/workflows/lint-test.yml,
+# `ct install` in .github/workflows/build-image.yml.
 #
 # Version increments are not enforced on PRs: Chart.yaml's `version` is not
 # the release version. Releases get their version at release time (release.yml,

@@ -145,3 +145,14 @@ Args (dict):
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Environment for every container that boots the Akkoma release (Erlang VM).
+See akkoma.erlMaxPorts in values.yaml.
+*/}}
+{{- define "akkoma.beamEnv" -}}
+{{- with .Values.akkoma.erlMaxPorts }}
+- name: ERL_MAX_PORTS
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
