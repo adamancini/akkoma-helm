@@ -229,6 +229,12 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.primary }}
           fail-build: false
           severity-cutoff: critical
+          # Warn only when a fixed version exists, so the warning is
+          # actionable. Most findings are in Alpine packages Akkoma depends
+          # on (imagemagick, ffmpeg, exiftool/perl) with no fix released yet.
+          # Those stay visible in Trivy's SARIF in the Security tab.
+          # False positives are suppressed, with reasons, in .grype.yaml.
+          only-fixed: true
 
   chart-install:
     name: Chart Testing (install, ${{ matrix.case }})
