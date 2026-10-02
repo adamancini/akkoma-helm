@@ -1,0 +1,27 @@
+# Grype configuration, picked up from the repository root by the "Run Grype
+# vulnerability scanner" step in .github/workflows/build-image.yml.
+#
+# Keep every entry justified and specific (vulnerability + package). Don't
+# ignore real findings just because no fix exists yet: build-image.yml's Grype
+# step only warns on findings that have a fix (`only-fixed`), and unfixed ones
+# stay visible in Trivy's report, which that workflow uploads to the
+# repository's Security tab.
+ignore:
+  # CVE-2014-9826: ImageMagick 6.x before 6.9.0 (2014). Matched against the
+  # image's ImageMagick 7.1.2 by version range, but 7.x isn't affected. The
+  # rule names each Alpine subpackage that inherits the match.
+  - vulnerability: CVE-2014-9826
+    package:
+      name: imagemagick
+  - vulnerability: CVE-2014-9826
+    package:
+      name: imagemagick-libs
+  - vulnerability: CVE-2014-9826
+    package:
+      name: imagemagick-jpeg
+  - vulnerability: CVE-2014-9826
+    package:
+      name: imagemagick-jxl
+  - vulnerability: CVE-2014-9826
+    package:
+      name: imagemagick-webp
