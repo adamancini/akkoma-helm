@@ -3,6 +3,10 @@
 #
 # Build arguments:
 #   AKKOMA_VERSION: Release version to download (stable, develop, or version tag) - default: stable
+#     CI always passes the chart's appVersion (vX.Y.Z); for those the build
+#     also checks the downloaded release reports that version.
+#   AKKOMA_PINNED_*: see the downloader stage -- for a release upstream only
+#     published under a floating path, pinned by SHA-256.
 #
 # Build command:
 #   docker build -t akkoma:latest .
@@ -30,17 +34,55 @@ RUN apk add --no-cache \
 ARG AKKOMA_VERSION=stable
 ARG TARGETARCH
 
+# Release archives normally live at <AKKOMA_VERSION>/. When upstream publishes
+# a release only under a floating path (e.g. stable/), pin it here: building
+# AKKOMA_PINNED_VERSION downloads from AKKOMA_PINNED_PATH and fails unless the
+# archive matches the recorded SHA-256, so the build stays immutable -- if
+# upstream replaces the archive, the build breaks instead of silently changing.
+#
+# v3.20.1 (2026.09 security release): tagged at 98dd958, but its build was
+# only published as stable/ -- built from bc62dd8, the tag plus a CI-only
+# follow-up merge ("use later base images to build releases"). The archives
+# report 3.20.1-0-gbc62dd8. Drop this once appVersion moves past v3.20.1.
+ARG AKKOMA_PINNED_VERSION=v3.20.1
+ARG AKKOMA_PINNED_PATH=stable
+ARG AKKOMA_PINNED_SHA256_AMD64=02c1db1b0a32d2f7ca4806967461f19387da0ba5186f925bc3156798aa1cc0e2
+ARG AKKOMA_PINNED_SHA256_ARM64=c66694a28b73eafcb16281c46d06ba18837055892a648a86d28a41db131fcf87
+
 WORKDIR /tmp
 
 # Select the correct flavour based on target architecture
 # amd64 -> amd64-musl, arm64 -> arm64-musl
-RUN AKKOMA_FLAVOUR="${TARGETARCH}-musl" && \
-    echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR})..." && \
+RUN set -e; \
+    AKKOMA_FLAVOUR="${TARGETARCH}-musl"; \
+    path="${AKKOMA_VERSION}"; sha=""; \
+    if [ "${AKKOMA_VERSION}" = "${AKKOMA_PINNED_VERSION}" ]; then \
+        path="${AKKOMA_PINNED_PATH}"; \
+        case "${TARGETARCH}" in \
+            amd64) sha="${AKKOMA_PINNED_SHA256_AMD64}" ;; \
+            arm64) sha="${AKKOMA_PINNED_SHA256_ARM64}" ;; \
+            *) echo "ERROR: no pinned checksum for ${TARGETARCH}"; exit 1 ;; \
+        esac; \
+    fi; \
+    echo "Downloading Akkoma ${AKKOMA_VERSION} (${AKKOMA_FLAVOUR}) from ${path}/..."; \
     curl -f -L --retry 3 --retry-delay 5 --max-time 300 \
-        "https://akkoma-updates.s3-website.fr-par.scw.cloud/${AKKOMA_VERSION}/akkoma-${AKKOMA_FLAVOUR}.zip" \
-        -o akkoma.zip && \
-    unzip -q akkoma.zip || (echo "ERROR: Failed to extract release archive"; exit 1) && \
-    rm akkoma.zip
+        "https://akkoma-updates.s3-website.fr-par.scw.cloud/${path}/akkoma-${AKKOMA_FLAVOUR}.zip" \
+        -o akkoma.zip; \
+    if [ -n "${sha}" ]; then \
+        echo "${sha}  akkoma.zip" | sha256sum -c - \
+            || { echo "ERROR: ${path}/akkoma-${AKKOMA_FLAVOUR}.zip no longer matches the pinned SHA-256 for ${AKKOMA_VERSION}"; exit 1; }; \
+    fi; \
+    unzip -q akkoma.zip || { echo "ERROR: Failed to extract release archive"; exit 1; }; \
+    rm akkoma.zip; \
+    case "${AKKOMA_VERSION}" in \
+        v[0-9]*) \
+            want="${AKKOMA_VERSION#v}"; \
+            got="$(cut -d' ' -f2 release/releases/start_erl.data)"; \
+            case "${got}" in \
+                "${want}"|"${want}"-*|"${want}"+*) echo "Release reports ${got}" ;; \
+                *) echo "ERROR: archive reports Akkoma ${got}, expected ${want}"; exit 1 ;; \
+            esac ;; \
+    esac
 
 # Verify the release structure and binary executability
 RUN test -d /tmp/release || \

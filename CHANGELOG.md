@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped `appVersion` to `v3.20.1` (upstream "2026.09 security release": updated `mint`, Masto API account `verified_at` fix, field-URL verification fixes). No update notes or migrations upstream; no chart-side changes needed. Upstream published this release's build only under the floating `stable` path, so the Dockerfile downloads it from there and pins each architecture's archive by SHA-256. The build fails if upstream replaces the archive. Any `vX.Y.Z` build now also checks that the downloaded release reports that version.
+
 ### Fixed
 
 - Akkoma's Erlang VM was OOM-killed at boot on nodes whose container runtime sets a huge open-file limit, such as containerd 2.x and recent kind node images (`kindest/node` v1.37), where `ulimit -n` is about 1e9. The VM sizes its port table from that limit. The server, `db-migrate` and `media-prune` containers now set `ERL_MAX_PORTS` from the new `akkoma.erlMaxPorts` value (default `65536`; `""` leaves it unset). Reproduced under a 2 GiB memory limit: with `nofile=1073741816` the VM is killed; with `ERL_MAX_PORTS=65536` it starts.

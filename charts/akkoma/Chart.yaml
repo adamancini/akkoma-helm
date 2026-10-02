@@ -5,7 +5,7 @@ type: application
 # Not the release version and not bumped per change: release.yml stamps the
 # version chosen at release time, and main builds publish 0.0.0-main.* charts.
 version: 0.6.2
-appVersion: "v3.20.0"
+appVersion: "v3.20.1"
 keywords:
   - akkoma
   - pleroma

@@ -30,7 +30,7 @@ akkoma:
 # Image configuration
 image:
   repository: ghcr.io/adamancini/akkoma
-  tag: ""  # Defaults to Chart.appVersion (v3.17.0)
+  tag: ""  # Defaults to Chart.appVersion
   pullPolicy: IfNotPresent
 
 # Ingress configuration
