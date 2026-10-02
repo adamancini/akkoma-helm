@@ -331,6 +331,8 @@ It refuses non-`X.Y.Z` versions, versions not newer than the latest `chart-v*` t
 
 Re-running with the same inputs after a partial failure is safe: steps skip what this release already published and fail on any conflict. Registry lookups go through `.github/scripts/registry-lib.sh`, which treats only "not found" as absent; any other registry error fails the run rather than risk overwriting a mutable ghcr tag.
 
+**Base image updates**: both Dockerfile stages pin `alpine:<minor>@sha256:<digest>`, so the image changes only when the Dockerfile does (content-addressing would otherwise never pick up a rebuilt Alpine). Renovate opens digest-bump PRs. Merging one builds a new image under the *same* Akkoma version, so the next release of that appVersion hits the write-once check above: release it with `overwrite-image-tag=true` (escape hatch: `gh workflow run release.yml -f sha=<commit> -f version=X.Y.Z -f overwrite-image-tag=true`), since Kargo's `release` Stage doesn't pass that input.
+
 `version:` in `charts/akkoma/Chart.yaml` is not the release version and is not bumped per PR (`ct.yaml` disables ct's version-increment check). Both workflows stamp their own.
 
 **Image tag meaning**: the only *version* tag an image carries is the Akkoma `appVersion` it runs, and it only appears once a chart release pins it. Everything else is a ref tag (`main-<ts>-<sha8>`, `<branch-slug>`, `main`, `latest`). An image tag never carries the chart's SemVer. Bumping Akkoma is a deliberate edit to `appVersion`, not something tied to a chart release.
