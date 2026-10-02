@@ -1,0 +1,43 @@
+# CI test: CloudNativePG-managed PostgreSQL with the optional add-ons that
+# don't change how Akkoma boots -- metrics + ServiceMonitor, the Grafana
+# dashboard ConfigMap, and the media-pruning CronJob. CNPG + media pruning
+# together guard the CronJob reading the right DB password key under CNPG.
+# Install-tested: the CI job installs the CNPG operator and the
+# ServiceMonitor CRD first.
+akkoma:
+  domain: test.example.com
+  adminEmail: admin@test.example.com
+
+postgresql:
+  cnpg:
+    enabled: true
+    instances: 1
+    storage:
+      size: 5Gi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: prometheus
+  grafana:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+    annotations:
+      description: "Akkoma Grafana dashboard"
+
+mediaPruning:
+  enabled: true
+  schedule: "0 4 * * 1"
+  options:
+    keepFollowed: "full"
+    keepThreads: true
+    keepNonPublic: false
+    limit: 5000
+    pruneOrphanedActivities: true
+    vacuum: true
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3

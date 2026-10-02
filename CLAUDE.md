@@ -346,7 +346,8 @@ Re-running with the same inputs after a partial failure is safe: steps skip what
 
 - All PRs must pass `helm lint`
 - Template rendering must succeed
-- chart-testing is split: `ct lint` runs in `lint-test.yml`; `ct install` (once per `charts/akkoma/ci/*-values.yaml`, in kind) runs in `build-image.yml` after the image build and installs **the PR's own image** (`<branch-slug>-<ts>-<sha8>`; fork PRs build and `kind load` it locally). Never install the `appVersion` tag in PR tests: it only exists after a release.
+- chart-testing is split: `ct lint` runs in `lint-test.yml`; `ct install` runs in `build-image.yml` after the image build and installs **the PR's own image** (`<branch-slug>-<ts>-<sha8>`; fork PRs build and `kind load` it locally). Never install the `appVersion` tag in PR tests: it only exists after a release.
+- `charts/akkoma/ci/` holds one values file per distinct install shape. The `chart-install` matrix install-tests six of them in parallel, one kind cluster each: `default`, `external` (external DB + external secrets), `cnpg-addons` (CNPG + metrics/ServiceMonitor + Grafana + media pruning), `garage`, `no-persistence` and `s3`. `full` and `frontend-override` are render-only. Every file is linted, rendered and kubeconform-checked in `lint-test.yml`. Add a new feature's coverage to an existing file when it doesn't change how Akkoma boots; add a matrix case only for a genuinely different install.
 - After merge, Kargo's dev Stage is the install test against the real cluster, with a smoke test of the running instance as its verification (sedemo-platform `apps/team-ada/kargo/analysis-templates.yaml`)
 
 ### CI/CD
