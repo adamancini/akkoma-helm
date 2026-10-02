@@ -37,8 +37,8 @@ image:
 ingress:
   enabled: false
   className: "nginx"
+  # e.g. cert-manager.io/cluster-issuer: letsencrypt-prod
   annotations: {}
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
   tls:
     enabled: false
     secretName: "akkoma-tls"
