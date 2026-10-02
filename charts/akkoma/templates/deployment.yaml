@@ -68,7 +68,7 @@ spec:
         {{- end }}
       # Run database migrations before starting Akkoma
       - name: db-migrate
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        image: {{ include "akkoma.image" . | quote }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - sh
@@ -210,7 +210,7 @@ spec:
         securityContext:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        image: {{ include "akkoma.image" . | quote }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - name: http

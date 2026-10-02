@@ -31,6 +31,11 @@ akkoma:
 image:
   repository: ghcr.io/adamancini/akkoma
   tag: ""  # Defaults to Chart.appVersion
+  # Optional image digest (sha256:...). When set, the image is referenced as
+  # repository:tag@digest, so every node runs exactly this image even if the
+  # tag is later moved. Deployment tools that know the digest (e.g. Kargo
+  # Freight) should set it.
+  digest: ""
   pullPolicy: IfNotPresent
 
 # Ingress configuration

@@ -24,6 +24,22 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
+Akkoma image reference: repository:tag, plus @digest when image.digest is
+set. A digest pins the exact image, so a moved tag (e.g. vX.Y.Z re-pointed at
+a base-image rebuild) can't leave a node running a stale cached copy.
+*/}}
+{{- define "akkoma.image" -}}
+{{- $ref := printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
+{{- with .Values.image.digest }}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" .) }}
+{{- fail (printf "image.digest must be sha256:<64 hex chars>, got %q" .) }}
+{{- end }}
+{{- $ref = printf "%s@%s" $ref . -}}
+{{- end }}
+{{- $ref -}}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "akkoma.chart" -}}
