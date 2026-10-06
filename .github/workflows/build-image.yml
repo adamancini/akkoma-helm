@@ -287,7 +287,7 @@ jobs:
         uses: helm/chart-testing-action@v2.8.0
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
 
       # Fork PRs can't push, so their image only exists locally: rebuild it
       # (amd64, mostly from the build job's cache) and load it into kind.
