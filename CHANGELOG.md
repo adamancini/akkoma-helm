@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every resource now carries the standard `app.kubernetes.io/part-of: akkoma` label. It is not a selector label, so upgrades are unaffected.
+
 ## [0.8.2] - 2026-10-02
 
 ### Added
