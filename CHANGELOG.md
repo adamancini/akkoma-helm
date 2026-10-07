@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Every resource now carries the standard `app.kubernetes.io/part-of: akkoma` label. It is not a selector label, so upgrades are unaffected.
 
+### Fixed
+
+- The `kubectl` commands in the install notes (`NOTES.txt`) now pass `-n <release namespace>`, so they work when the chart isn't installed into the current namespace.
+
 ## [0.8.2] - 2026-10-02
 
 ### Added

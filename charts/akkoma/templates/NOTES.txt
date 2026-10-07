@@ -3,10 +3,10 @@ Thank you for installing {{ .Chart.Name }}!
 Your Akkoma instance is being deployed to {{ .Values.akkoma.domain }}.
 
 1. Get the application status:
-   kubectl get pods -l app.kubernetes.io/name={{ include "akkoma.name" . }}
+   kubectl get -n {{ .Release.Namespace }} pods -l app.kubernetes.io/name={{ include "akkoma.name" . }}
 
 2. View logs:
-   kubectl logs -f deployment/{{ include "akkoma.fullname" . }}
+   kubectl logs -n {{ .Release.Namespace }} -f deployment/{{ include "akkoma.fullname" . }}
 
 {{- if .Values.ingress.enabled }}
 
@@ -19,12 +19,12 @@ Your Akkoma instance is being deployed to {{ .Values.akkoma.domain }}.
 {{- else }}
 
 3. Access the application (port-forward):
-   kubectl port-forward svc/{{ include "akkoma.fullname" . }} 4000:4000
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "akkoma.fullname" . }} 4000:4000
    http://localhost:4000
 {{- end }}
 
 4. Create an admin user (after pods are running):
-   kubectl exec -it deployment/{{ include "akkoma.fullname" . }} -- \
+   kubectl exec -n {{ .Release.Namespace }} -it deployment/{{ include "akkoma.fullname" . }} -- \
      /opt/akkoma/bin/pleroma_ctl user new admin {{ .Values.akkoma.adminEmail }} --admin
 
 {{- if not .Values.externalSecret.enabled }}
@@ -42,7 +42,7 @@ CloudNativePG:
   Service endpoint: {{ include "akkoma.fullname" . }}-cnpg-rw:5432
   Credentials secret: {{ include "akkoma.fullname" . }}-cnpg-app
   Check cluster status:
-    kubectl get cluster {{ include "akkoma.fullname" . }}-cnpg
+    kubectl get -n {{ .Release.Namespace }} cluster {{ include "akkoma.fullname" . }}-cnpg
 {{- end }}
 
 {{- if .Values.mediaPruning.enabled }}
@@ -51,7 +51,7 @@ Media Pruning:
   CronJob name: {{ include "akkoma.fullname" . }}-media-prune
   Schedule: {{ .Values.mediaPruning.schedule }}
   View job history:
-    kubectl get jobs -l app.kubernetes.io/component=media-prune
+    kubectl get -n {{ .Release.Namespace }} jobs -l app.kubernetes.io/component=media-prune
 {{- end }}
 
 {{- if and .Values.metrics.enabled .Values.metrics.grafana.enabled }}
