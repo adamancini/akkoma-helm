@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Every resource now carries the standard `app.kubernetes.io/part-of: akkoma` label. It is not a selector label, so upgrades are unaffected.
+- `revisionHistoryLimit` (default `10`, the Kubernetes default) sets how many old ReplicaSets the Akkoma Deployment keeps for rollback.
 
 ### Fixed
 

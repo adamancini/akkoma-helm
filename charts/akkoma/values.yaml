@@ -375,6 +375,9 @@ securityContext:
     drop: ["ALL"]
   readOnlyRootFilesystem: true
 
+# Old ReplicaSets to keep for `kubectl rollout undo` (Kubernetes default: 10)
+revisionHistoryLimit: 10
+
 # Pod annotations and labels
 podAnnotations: {}
 podLabels: {}

@@ -6,6 +6,7 @@ metadata:
     {{- include "akkoma.labels" . | nindent 4 }}
 spec:
   replicas: 1  # Single instance only
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   strategy:
     type: Recreate  # Terminate old pod before starting new (single-instance pattern)
   selector:
