@@ -3,7 +3,38 @@ entries:
   akkoma:
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.987229337Z"
+    created: "2026-10-30T15:25:17.153049703Z"
+    dependencies:
+    - condition: garage.enabled
+      name: garage
+      repository: ""
+      version: 0.1.0
+    description: A Helm chart for deploying Akkoma, a federated social networking
+      server (ActivityPub/Fediverse)
+    digest: 0f92f3db5cbf13b88a60ae54aef7598d7a069e9df4096cb3d743a2a596595610
+    home: https://github.com/adamancini/akkoma-helm
+    keywords:
+    - akkoma
+    - pleroma
+    - fediverse
+    - activitypub
+    - social-network
+    - federation
+    maintainers:
+    - name: adamancini
+      url: https://github.com/adamancini
+    name: akkoma
+    sources:
+    - https://akkoma.dev/AkkomaGang/akkoma
+    - https://docs.akkoma.dev/
+    - https://github.com/adamancini/akkoma-helm
+    type: application
+    urls:
+    - https://adamancini.github.io/akkoma-helm/akkoma-0.9.1.tgz
+    version: 0.9.1
+  - apiVersion: v2
+    appVersion: v3.20.1
+    created: "2026-10-30T15:25:17.151753609Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -34,7 +65,7 @@ entries:
     version: 0.9.0
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.984957906Z"
+    created: "2026-10-30T15:25:17.150468291Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -65,7 +96,7 @@ entries:
     version: 0.8.8
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.983502275Z"
+    created: "2026-10-30T15:25:17.149161701Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -96,7 +127,7 @@ entries:
     version: 0.8.7
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.98203275Z"
+    created: "2026-10-30T15:25:17.147204024Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -127,7 +158,7 @@ entries:
     version: 0.8.6
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.980473029Z"
+    created: "2026-10-30T15:25:17.145935211Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -158,7 +189,7 @@ entries:
     version: 0.8.5
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.978244429Z"
+    created: "2026-10-30T15:25:17.144613197Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -189,7 +220,7 @@ entries:
     version: 0.8.4
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.97683398Z"
+    created: "2026-10-30T15:25:17.143287619Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -220,7 +251,7 @@ entries:
     version: 0.8.3
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.975382574Z"
+    created: "2026-10-30T15:25:17.14130164Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -251,7 +282,7 @@ entries:
     version: 0.8.2
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.973895406Z"
+    created: "2026-10-30T15:25:17.140010132Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -282,7 +313,7 @@ entries:
     version: 0.8.1
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.971560165Z"
+    created: "2026-10-30T15:25:17.138732195Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -313,7 +344,7 @@ entries:
     version: 0.8.0
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.970087613Z"
+    created: "2026-10-30T15:25:17.137424423Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -344,7 +375,7 @@ entries:
     version: 0.7.3
   - apiVersion: v2
     appVersion: v3.20.1
-    created: "2026-10-23T18:52:03.968662371Z"
+    created: "2026-10-30T15:25:17.135260673Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -375,7 +406,7 @@ entries:
     version: 0.7.2
   - apiVersion: v2
     appVersion: v3.20.0
-    created: "2026-10-23T18:52:03.967141903Z"
+    created: "2026-10-30T15:25:17.133998189Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -406,7 +437,7 @@ entries:
     version: 0.7.1
   - apiVersion: v2
     appVersion: v3.20.0
-    created: "2026-10-23T18:52:03.964569172Z"
+    created: "2026-10-30T15:25:17.132718569Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -437,7 +468,7 @@ entries:
     version: 0.7.0
   - apiVersion: v2
     appVersion: v3.20.0
-    created: "2026-10-23T18:52:03.963138112Z"
+    created: "2026-10-30T15:25:17.131426651Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -468,7 +499,7 @@ entries:
     version: 0.6.3
   - apiVersion: v2
     appVersion: v3.20.0
-    created: "2026-10-23T18:52:03.961619915Z"
+    created: "2026-10-30T15:25:17.12935253Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -499,7 +530,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: v3.20.0
-    created: "2026-10-23T18:52:03.959951151Z"
+    created: "2026-10-30T15:25:17.128107222Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -530,7 +561,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: v3.19.0
-    created: "2026-10-23T18:52:03.957168071Z"
+    created: "2026-10-30T15:25:17.126860401Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -561,7 +592,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: v3.19.0
-    created: "2026-10-23T18:52:03.955786194Z"
+    created: "2026-10-30T15:25:17.125392704Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -592,7 +623,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: v3.19.0
-    created: "2026-10-23T18:52:03.954403364Z"
+    created: "2026-10-30T15:25:17.123359649Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -623,7 +654,7 @@ entries:
     version: 0.4.7
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.953111182Z"
+    created: "2026-10-30T15:25:17.122235193Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -654,7 +685,7 @@ entries:
     version: 0.4.6
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.951153095Z"
+    created: "2026-10-30T15:25:17.121119669Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -685,7 +716,7 @@ entries:
     version: 0.4.5
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.949632576Z"
+    created: "2026-10-30T15:25:17.119941992Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -716,7 +747,7 @@ entries:
     version: 0.4.4
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.948353972Z"
+    created: "2026-10-30T15:25:17.118001507Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -747,7 +778,7 @@ entries:
     version: 0.4.3
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.94711658Z"
+    created: "2026-10-30T15:25:17.116856609Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -778,7 +809,7 @@ entries:
     version: 0.4.2
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.945864282Z"
+    created: "2026-10-30T15:25:17.115811502Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -809,7 +840,7 @@ entries:
     version: 0.4.1
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.943485209Z"
+    created: "2026-10-30T15:25:17.114652683Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -840,7 +871,7 @@ entries:
     version: 0.4.0
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.942245119Z"
+    created: "2026-10-30T15:25:17.113003274Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -871,7 +902,7 @@ entries:
     version: 0.3.1
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.940994317Z"
+    created: "2026-10-30T15:25:17.111448392Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -902,7 +933,7 @@ entries:
     version: 0.3.0
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.939773595Z"
+    created: "2026-10-30T15:25:17.110359248Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -933,7 +964,7 @@ entries:
     version: 0.2.3
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.938855562Z"
+    created: "2026-10-30T15:25:17.109539348Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -964,7 +995,7 @@ entries:
     version: 0.2.2
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.937895609Z"
+    created: "2026-10-30T15:25:17.108793899Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -995,7 +1026,7 @@ entries:
     version: 0.2.1
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.936290505Z"
+    created: "2026-10-30T15:25:17.108026679Z"
     dependencies:
     - condition: garage.enabled
       name: garage
@@ -1026,7 +1057,7 @@ entries:
     version: 0.2.0
   - apiVersion: v2
     appVersion: v3.17.0
-    created: "2026-10-23T18:52:03.934784835Z"
+    created: "2026-10-30T15:25:17.10717464Z"
     description: A Helm chart for deploying Akkoma, a federated social networking
       server (ActivityPub/Fediverse)
     digest: 83f73fc994e0e50ee620983dc2e2638ae0ce31ce67ecde7897a04c8c87265d44
@@ -1050,4 +1081,4 @@ entries:
     urls:
     - https://adamancini.github.io/akkoma-helm/akkoma-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-23T18:52:03.933967589Z"
+generated: "2026-10-30T15:25:17.106429753Z"
