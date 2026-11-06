@@ -27,7 +27,7 @@
 # this line changes: Renovate opens a PR when alpine:3.24 is rebuilt (e.g.
 # for security fixes). A digest bump rebuilds the image under the same Akkoma
 # version -- see "Base image updates" in CLAUDE.md for releasing it.
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS downloader
+FROM alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a AS downloader
 
 # Install download dependencies
 RUN apk add --no-cache \
@@ -107,7 +107,7 @@ RUN test -d /tmp/release || \
 # ============================================================================
 # Stage 2: Runtime - Minimal Alpine-based image
 # ============================================================================
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
 
 # Install runtime dependencies
 # Based on: https://docs.akkoma.dev/stable/installation/otp_en/
